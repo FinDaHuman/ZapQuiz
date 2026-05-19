@@ -1,0 +1,252 @@
+Requirements Specification — Kahoot-like Anti-Cheat Quiz Platform
+1. Project Overview
+
+The project is a real-time web application for hosting live multiple-choice quizzes similar to Kahoot!, with a strong focus on reducing cheating and improving fairness.
+
+The platform must support:
+
+Real-time quiz sessions
+Lobby-based joining system
+Live leaderboard
+Anti-cheat protections
+Host controls
+No-login player participation
+2. User Roles
+2.1 Host
+
+The host is responsible for:
+
+Creating quiz lobbies
+Managing quiz sessions
+Starting and ending tests
+Monitoring participants
+Viewing leaderboard and results
+2.2 Player
+
+The player is responsible for:
+
+Joining a lobby using a Lobby ID
+Choosing a display name
+Participating in quizzes
+Viewing scores and leaderboard
+
+Players are not required to create an account or log in.
+
+3. Core Features
+3.1 Landing Page
+
+The landing page must include:
+
+Website title/logo
+Input field for Lobby ID
+“Join Lobby” button
+“Create Lobby” button for hosts
+
+Optional:
+
+Description of the platform
+Anti-cheat explanation
+How-it-works section
+3.2 Lobby System
+Player Flow
+User enters Lobby ID
+User chooses a display name
+User joins waiting room
+Lobby Requirements
+Each lobby must have:
+Unique Lobby ID
+Host
+Player list
+Quiz status (waiting, running, ended)
+Multiple lobbies must be supported simultaneously
+Lobby Waiting Room
+
+The waiting room must display:
+
+Lobby ID
+Player count
+Player names
+Waiting status
+Start button (host only)
+3.3 Host Controls
+
+The host must be able to:
+
+Create a lobby
+Select or upload a quiz
+View connected players
+Remove/kick players
+Start the quiz
+End the quiz at any time
+View live participant statistics
+
+Optional advanced controls:
+
+Pause quiz
+Skip question
+Extend timer
+Lock lobby after start
+3.4 Quiz Gameplay
+Question Requirements
+
+The system must support:
+
+Multiple-choice questions
+2–6 answer choices
+Single correct answer
+Timed questions
+Quiz Flow
+Host starts quiz
+Question appears to all players simultaneously
+Players answer within timer
+System records:
+Answer correctness
+Response time
+Score is calculated
+Next question starts automatically or manually
+3.5 Scoring System
+
+The score should be based on:
+
+Correctness
+Speed of answering
+
+Example formula:
+
+Score = Base Points + Speed Bonus
+
+Optional:
+
+Streak bonus
+Accuracy bonus
+3.6 Leaderboard
+
+The platform must display:
+
+Live leaderboard during the quiz
+Final leaderboard after quiz ends
+
+Leaderboard must include:
+
+Rank
+Player name
+Score
+Correct answer count
+
+Optional:
+
+Average response time
+Accuracy percentage
+4. Anti-Cheat Requirements
+
+The platform must include mechanisms to reduce cheating.
+
+4.1 Browser Anti-Cheat
+
+The system should:
+
+Detect tab switching
+Detect window unfocus
+Detect fullscreen exit
+Detect copy/paste attempts
+Detect developer tools opening (best effort)
+
+Optional actions:
+
+Warning message
+Score penalty
+Auto-disqualification
+4.2 Session Protection
+
+The system should:
+
+Prevent duplicate names in same lobby
+Prevent multiple joins from same session/device
+Prevent answer resubmission
+Prevent answering after timer expires
+4.3 Communication Security
+
+The system should:
+
+Use HTTPS
+Use secure WebSocket connections
+Validate all server-side answers
+Never trust client-side scoring
+4.4 Anti-Bot Protection
+
+The system should:
+
+Rate-limit requests
+Detect abnormal answer speeds
+Optionally use CAPTCHA during join
+5. Real-Time Requirements
+
+The platform must support real-time synchronization.
+
+Updates that must be real-time:
+
+Player join/leave
+Quiz start/end
+Question changes
+Timer countdown
+Leaderboard updates
+
+Recommended technology:
+
+WebSockets
+Socket.IO
+Server-Sent Events (alternative)
+6. Technical Requirements
+Frontend
+
+Recommended:
+
+React
+Next.js
+Vue.js (alternative)
+
+Frontend must support:
+
+Mobile devices
+Desktop devices
+Responsive UI
+Backend
+
+Recommended:
+
+Node.js
+Express.js
+NestJS (optional)
+
+Backend responsibilities:
+
+Lobby management
+Real-time communication
+Quiz state management
+Score calculation
+Anti-cheat validation
+Database
+
+Recommended:
+
+PostgreSQL
+Redis (for real-time lobby state)
+
+Store:
+
+Quiz data
+Questions
+Scores
+Lobby sessions
+Audit logs
+7. Non-Functional Requirements
+Performance
+Support at least 100 concurrent players per lobby
+Question synchronization delay under 500ms
+Reliability
+Handle reconnects gracefully
+Preserve scores during temporary disconnects
+Security
+Validate all API requests
+Sanitize player names
+Prevent XSS and SQL injection

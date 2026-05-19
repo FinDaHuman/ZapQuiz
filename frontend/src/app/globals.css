@@ -1,0 +1,151 @@
+:root {
+  --background: #f2f2f2;
+  --foreground: #333333;
+  --primary: #46178f; /* Kahoot Purple */
+  --primary-hover: #35106e;
+  --secondary: #eb2326; /* Kahoot Red */
+  --card: #ffffff;
+  --input-bg: #f9f9f9;
+  --input-border: #cccccc;
+  --success: #26890c;
+  --warning: #ffb020;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1e1e1e;
+    --foreground: #ffffff;
+    --card: #2d2d2d;
+    --input-bg: #3d3d3d;
+    --input-border: #555555;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  width: 100%;
+}
+
+.center-card {
+  background: var(--card);
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  max-width: 400px;
+  margin: 10vh auto;
+}
+
+.title {
+  color: var(--primary);
+  margin-bottom: 1.5rem;
+  font-size: 2.5rem;
+  font-weight: 800;
+}
+
+.input-field {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  border: 2px solid var(--input-border);
+  border-radius: 4px;
+  background-color: var(--input-bg);
+  color: var(--foreground);
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--secondary);
+  color: white;
+}
+
+/* Grid for choices */
+.grid-2x2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.choice-btn {
+  padding: 3rem 1rem;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 0px rgba(0,0,0,0.2);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.choice-btn:active {
+  transform: translateY(4px);
+  box-shadow: none;
+}
+
+/* Specific choice colors */
+.color-0 { background-color: #e21b3c; } /* Red */
+.color-1 { background-color: #1368ce; } /* Blue */
+.color-2 { background-color: #d89e00; } /* Yellow */
+.color-3 { background-color: #26890c; } /* Green */
+
+.leaderboard {
+  list-style: none;
+  margin-top: 2rem;
+  text-align: left;
+}
+
+.leaderboard-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+  background-color: var(--input-bg);
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.out-tabbed {
+  color: var(--secondary);
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+}
