@@ -1,24 +1,12 @@
 :root {
-  --background: #f2f2f2;
+  --bg-gradient: linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%);
   --foreground: #333333;
-  --primary: #46178f; /* Kahoot Purple */
-  --primary-hover: #35106e;
-  --secondary: #eb2326; /* Kahoot Red */
+  --primary: #4A90E2;
+  --primary-hover: #357ABD;
+  --secondary: #FF5E62;
   --card: #ffffff;
-  --input-bg: #f9f9f9;
-  --input-border: #cccccc;
-  --success: #26890c;
-  --warning: #ffb020;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1e1e1e;
-    --foreground: #ffffff;
-    --card: #2d2d2d;
-    --input-bg: #3d3d3d;
-    --input-border: #555555;
-  }
+  --success: #2ED573;
+  --error: #FF4757;
 }
 
 * {
@@ -28,16 +16,16 @@
 }
 
 body {
-  background-color: var(--background);
+  background: var(--bg-gradient);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
 .container {
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: 2rem;
   width: 100%;
@@ -45,107 +33,153 @@ body {
 
 .center-card {
   background: var(--card);
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 2.5rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
   text-align: center;
-  max-width: 400px;
+  max-width: 450px;
   margin: 10vh auto;
 }
 
 .title {
   color: var(--primary);
   margin-bottom: 1.5rem;
-  font-size: 2.5rem;
-  font-weight: 800;
+  font-size: 2.8rem;
+  font-weight: 900;
+  letter-spacing: -1px;
 }
 
 .input-field {
   width: 100%;
-  padding: 1rem;
-  font-size: 1.1rem;
-  border: 2px solid var(--input-border);
-  border-radius: 4px;
-  background-color: var(--input-bg);
+  padding: 1.2rem;
+  font-size: 1.2rem;
+  border: 3px solid #eee;
+  border-radius: 12px;
+  background-color: #fafafa;
   color: var(--foreground);
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
   text-align: center;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: var(--primary);
 }
 
 .btn {
   width: 100%;
-  padding: 1rem;
-  font-size: 1.2rem;
-  font-weight: bold;
+  padding: 1.2rem;
+  font-size: 1.3rem;
+  font-weight: 800;
   border: none;
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  box-shadow: 0 6px 0px rgba(0,0,0,0.15);
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
 }
 
-.btn-primary {
-  background-color: var(--primary);
-  color: white;
+.btn:active {
+  transform: translateY(6px);
+  box-shadow: none;
 }
 
-.btn-primary:hover {
-  background-color: var(--primary-hover);
-}
+.btn-primary { background-color: var(--primary); color: white; }
+.btn-primary:hover { background-color: var(--primary-hover); }
+.btn-secondary { background-color: var(--secondary); color: white; }
+.btn-success { background-color: var(--success); color: white; }
+.btn-error { background-color: var(--error); color: white; }
 
-.btn-secondary {
-  background-color: var(--secondary);
-  color: white;
-}
-
-/* Grid for choices */
+/* Choices grid */
 .grid-2x2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 1.5rem;
   margin-top: 2rem;
 }
 
 .choice-btn {
-  padding: 3rem 1rem;
+  padding: 3rem 1.5rem;
   font-size: 1.5rem;
   font-weight: bold;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 16px;
   cursor: pointer;
-  box-shadow: 0 4px 0px rgba(0,0,0,0.2);
-  transition: transform 0.1s, box-shadow 0.1s;
+  box-shadow: 0 8px 0px rgba(0,0,0,0.2);
+  transition: transform 0.1s, box-shadow 0.1s, filter 0.2s;
 }
 
 .choice-btn:active {
-  transform: translateY(4px);
+  transform: translateY(8px);
   box-shadow: none;
 }
 
-/* Specific choice colors */
-.color-0 { background-color: #e21b3c; } /* Red */
-.color-1 { background-color: #1368ce; } /* Blue */
-.color-2 { background-color: #d89e00; } /* Yellow */
-.color-3 { background-color: #26890c; } /* Green */
+.choice-btn:hover {
+  filter: brightness(1.1);
+}
+
+.color-0 { background-color: #FF4757; } /* Red */
+.color-1 { background-color: #1E90FF; } /* Blue */
+.color-2 { background-color: #FFA502; } /* Orange */
+.color-3 { background-color: #2ED573; } /* Green */
 
 .leaderboard {
   list-style: none;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   text-align: left;
 }
 
 .leaderboard-item {
   display: flex;
   justify-content: space-between;
-  padding: 1rem;
-  background-color: var(--input-bg);
-  margin-bottom: 0.5rem;
-  border-radius: 4px;
+  align-items: center;
+  padding: 1.2rem;
+  background-color: #f8f9fa;
+  margin-bottom: 0.8rem;
+  border-radius: 12px;
   font-weight: bold;
+  font-size: 1.1rem;
+  border-left: 6px solid var(--primary);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .out-tabbed {
-  color: var(--secondary);
-  font-size: 0.8rem;
-  margin-left: 0.5rem;
+  color: var(--error);
+  font-size: 0.85rem;
+  margin-left: 0.8rem;
+  background: #ffe6e6;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+.feedback-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80vh;
+  animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.feedback-title {
+  font-size: 5rem;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  margin-bottom: 1rem;
+}
+
+.feedback-subtitle {
+  font-size: 1.8rem;
+  color: white;
+  background: rgba(0,0,0,0.2);
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  font-weight: bold;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
