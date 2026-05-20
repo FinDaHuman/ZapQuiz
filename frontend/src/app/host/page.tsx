@@ -17,25 +17,43 @@ type QuizState = {
 export default function HostDashboard() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [quizState, setQuizState] = useState<QuizState | null>(null);
+  const [password, setPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
-
-    socket.emit('join', { token: 'host-view', name: 'Host' });
 
     const handleStateUpdate = (data: any) => {
       setQuizState({ status: data.status });
       setPlayers(data.leaderboard || []);
     };
+    
+    const handleSync = (data: any) => {
+      handleStateUpdate(data);
+      setIsAuthenticated(true);
+      setAuthError('');
+    };
+
+    const handleAuthError = (data: any) => {
+      setAuthError(data.message);
+    };
 
     socket.on('state_update', handleStateUpdate);
-    socket.on('sync', handleStateUpdate);
+    socket.on('sync', handleSync);
+    socket.on('auth_error', handleAuthError);
 
     return () => {
       socket.off('state_update', handleStateUpdate);
-      socket.off('sync', handleStateUpdate);
+      socket.off('sync', handleSync);
+      socket.off('auth_error', handleAuthError);
     };
   }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    socket.emit('join', { token: 'host-view', name: 'Host', password });
+  };
 
   const downloadCSV = () => {
     const header = "Rank,Name,Score,Tab Switched\n";
@@ -55,8 +73,30 @@ export default function HostDashboard() {
   };
 
   const handleAction = (action: string) => {
-    socket.emit('host_action', { action });
+    socket.emit('host_action', { action, password });
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+        <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '20px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ color: 'var(--primary)', textAlign: 'center', marginBottom: '1.5rem' }}>Host Login</h2>
+          {authError && <div style={{ color: 'red', textAlign: 'center', marginBottom: '1rem' }}>{authError}</div>}
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <input
+              type="password"
+              placeholder="Enter Host Password"
+              className="input-field"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Login</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container" style={{ maxWidth: '1200px' }}>

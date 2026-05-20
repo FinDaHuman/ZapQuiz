@@ -35,8 +35,16 @@ function broadcastState() {
 }
 
 io.on('connection', (socket) => {
-  socket.on('join', ({ token, name }) => {
+  socket.on('join', ({ token, name, password }) => {
     if (!token) return;
+    
+    if (token === 'host-view') {
+      if (password !== process.env.HOST_PASSWORD) {
+        socket.emit('auth_error', { message: 'Invalid host password' });
+        return;
+      }
+    }
+
     if (!gameState.players[token]) {
       gameState.players[token] = { 
         token, 
@@ -118,7 +126,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host_action', async (data) => {
-    const { action } = data;
+    const { action, password } = data;
+    
+    if (password !== process.env.HOST_PASSWORD) {
+      socket.emit('auth_error', { message: 'Unauthorized action' });
+      return;
+    }
+
     if (action === 'start') {
       const { data: qData } = await supabase.from('questions').select('*');
       if (qData) gameState.questions = qData;
