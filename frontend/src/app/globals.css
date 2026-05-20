@@ -168,17 +168,14 @@ body {
 
 /* NEW: Inline Feedback Styles */
 .correct-answer {
-  background-color: var(--success) !important;
-  color: white !important;
-  box-shadow: 0 0 20px rgba(46, 213, 115, 0.5) !important;
+  box-shadow: 0 0 20px rgba(46, 213, 115, 0.8) !important;
   transform: scale(1.02);
   z-index: 10;
 }
 
 .wrong-answer {
-  background-color: var(--error) !important;
-  color: white !important;
   opacity: 0.9;
+  box-shadow: inset 0 0 0 4px var(--error) !important;
 }
 
 .dimmed-answer {
@@ -238,6 +235,8 @@ body {
   background-color: var(--primary);
   width: 100%;
   transform-origin: left;
+  transform: scaleX(1);
+  transition: transform 0.3s ease-out;
 }
 
 .progress-fill.shrinking {

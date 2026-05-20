@@ -93,7 +93,7 @@ export default function Play() {
     if (!token) return;
 
     const handleVisibilityChange = () => {
-      if (document.hidden && !isOutTabbed) {
+      if (document.hidden && !isOutTabbed && status === 'running') {
         setIsOutTabbed(true);
         socket.emit('tab_switched', { token });
       }
@@ -106,7 +106,7 @@ export default function Play() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleVisibilityChange);
     };
-  }, [token, isOutTabbed]);
+  }, [token, isOutTabbed, status]);
 
   const submitAnswer = (answer: string) => {
     if (localState !== 'playing' || !token || !currentQuestion) return;
@@ -121,10 +121,19 @@ export default function Play() {
 
   if (status === 'waiting') {
     return (
-      <div className="center-card">
-        <h1 className="title">You're in!</h1>
-        <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Get ready to play at your own pace.</p>
-        <p style={{ marginTop: '1.5rem', color: '#666' }}>Waiting for host to start...</p>
+      <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div className="center-card" style={{ maxWidth: '800px', width: '100%' }}>
+          <h1 className="title">You're in!</h1>
+          <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Total Players: {leaderboard.length}</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '20px', justifyContent: 'center' }}>
+            {leaderboard.map(p => (
+              <div key={p.token} style={{ padding: '10px 20px', background: 'var(--primary)', color: 'white', borderRadius: '8px', fontWeight: 'bold' }}>
+                {p.name}
+              </div>
+            ))}
+          </div>
+          <p style={{ marginTop: '2rem', color: '#666' }}>Waiting for host to start...</p>
+        </div>
       </div>
     );
   }

@@ -38,7 +38,15 @@ io.on('connection', (socket) => {
   socket.on('join', ({ token, name }) => {
     if (!token) return;
     if (!gameState.players[token]) {
-      gameState.players[token] = { token, name: name || 'Anonymous', score: 0, outTabbed: false, socketId: socket.id };
+      gameState.players[token] = { 
+        token, 
+        name: name || 'Anonymous', 
+        score: 0, 
+        outTabbed: false, 
+        socketId: socket.id,
+        unseenQuestions: [],
+        recentQuestions: []
+      };
     } else {
       gameState.players[token].socketId = socket.id;
     }
@@ -51,8 +59,36 @@ io.on('connection', (socket) => {
   });
 
   socket.on('get_question', ({ token }) => {
-    if (gameState.status !== 'running' || gameState.questions.length === 0) return;
-    const qIndex = Math.floor(Math.random() * gameState.questions.length);
+    const player = gameState.players[token];
+    if (!player || gameState.status !== 'running' || gameState.questions.length === 0) return;
+
+    if (!player.unseenQuestions || player.unseenQuestions.length === 0) {
+      player.unseenQuestions = gameState.questions.map((_, i) => i);
+    }
+
+    if (!player.recentQuestions) player.recentQuestions = [];
+
+    let available = player.unseenQuestions.filter(i => !player.recentQuestions.includes(i));
+
+    if (available.length === 0) {
+      available = player.unseenQuestions;
+      if (available.length > 1 && player.recentQuestions.length > 0) {
+        const lastQ = player.recentQuestions[player.recentQuestions.length - 1];
+        available = available.filter(i => i !== lastQ);
+        if (available.length === 0) available = player.unseenQuestions;
+      }
+    }
+
+    const randIdx = Math.floor(Math.random() * available.length);
+    const qIndex = available[randIdx];
+
+    player.unseenQuestions = player.unseenQuestions.filter(i => i !== qIndex);
+    
+    player.recentQuestions.push(qIndex);
+    if (player.recentQuestions.length > 3) {
+      player.recentQuestions.shift();
+    }
+
     const q = gameState.questions[qIndex];
     socket.emit('receive_question', { questionIndex: qIndex, question_text: q.question_text, options: q.options });
   });
@@ -88,7 +124,12 @@ io.on('connection', (socket) => {
       if (qData) gameState.questions = qData;
       
       gameState.status = 'running';
-      Object.values(gameState.players).forEach(p => { p.score = 0; p.outTabbed = false; });
+      Object.values(gameState.players).forEach(p => { 
+        p.score = 0; 
+        p.outTabbed = false; 
+        p.unseenQuestions = [];
+        p.recentQuestions = [];
+      });
       broadcastState();
     } else if (action === 'end') {
       gameState.status = 'ended';

@@ -109,22 +109,37 @@ export default function HostDashboard() {
         </div>
 
         <div style={{ flex: 2, backgroundColor: 'white', padding: '2rem', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ color: 'var(--primary)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between' }}>
-            <span>Live Leaderboard</span>
-            <span>{players.length} Players</span>
-          </h2>
-          <ul className="leaderboard">
-            {players.map((p, index) => (
-              <li key={p.token} className="leaderboard-item">
-                <span style={{ display: 'flex', alignItems: 'center' }}>
-                  <strong style={{ fontSize: '1.4rem', color: 'var(--primary)', marginRight: '1rem', width: '30px' }}>#{index + 1}</strong> 
-                  {p.name} 
-                  {p.outTabbed && <span className="out-tabbed">⚠️ Tab Switched</span>}
-                </span>
-                <span style={{ fontSize: '1.4rem', color: 'var(--success)' }}>{p.score} <small style={{ color: '#888', fontSize: '1rem' }}>pts</small></span>
-              </li>
-            ))}
-          </ul>
+          {quizState?.status === 'waiting' ? (
+            <>
+              <h2 style={{ color: 'var(--primary)', marginBottom: '1.5rem', textAlign: 'center' }}>Total Players: {players.length}</h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                {players.map((p) => (
+                  <div key={p.token} style={{ padding: '15px 25px', background: 'var(--primary)', color: 'white', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                    {p.name}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 style={{ color: 'var(--primary)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Live Leaderboard</span>
+                <span>{players.length} Players</span>
+              </h2>
+              <ul className="leaderboard">
+                {players.map((p, index) => (
+                  <li key={p.token} className="leaderboard-item">
+                    <span style={{ display: 'flex', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '1.4rem', color: 'var(--primary)', marginRight: '1rem', width: '30px' }}>#{index + 1}</strong> 
+                      {p.name} 
+                      {p.outTabbed && <span className="out-tabbed">⚠️ Tab Switched</span>}
+                    </span>
+                    <span style={{ fontSize: '1.4rem', color: 'var(--success)' }}>{p.score} <small style={{ color: '#888', fontSize: '1rem' }}>pts</small></span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       </div>
     </div>
