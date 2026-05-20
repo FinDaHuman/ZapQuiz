@@ -21,10 +21,31 @@ const gameState = {
   players: {}
 };
 
+// Helper: create a fresh set of per-game player tracking fields
+function freshPlayerTracking() {
+  return {
+    score: 0,
+    outTabbed: false,
+    unseenQuestions: [],
+    recentQuestions: [],
+    currentQuestionIndex: null,     // the question the server actually sent
+    totalAnswered: 0,
+    totalCorrect: 0,
+  };
+}
+
 function getLeaderboard() {
   return Object.values(gameState.players)
     .filter(p => p.token !== 'host-view')
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score)
+    .map(p => ({
+      token: p.token,
+      name: p.name,
+      score: p.score,
+      outTabbed: p.outTabbed,
+      totalAnswered: p.totalAnswered,
+      totalCorrect: p.totalCorrect,
+    }));
 }
 
 function broadcastState() {
@@ -37,18 +58,27 @@ function broadcastState() {
 io.on('connection', (socket) => {
   socket.on('join', ({ token, name }) => {
     if (!token) return;
+    
+    // Prevent massive payload abuse
+    if (typeof name === 'string' && name.length > 200) return;
+
+    // Unicode normalize and clean name
+    const cleanName = (typeof name === 'string' ? name : '')
+      .normalize("NFC")
+      .trim()
+      .slice(0, 28) || 'Anonymous';
+
     if (!gameState.players[token]) {
       gameState.players[token] = { 
         token, 
-        name: name || 'Anonymous', 
-        score: 0, 
-        outTabbed: false, 
+        name: cleanName, 
         socketId: socket.id,
-        unseenQuestions: [],
-        recentQuestions: []
+        ...freshPlayerTracking()
       };
     } else {
       gameState.players[token].socketId = socket.id;
+      // Update name in case they rejoined with a new name
+      gameState.players[token].name = cleanName;
     }
 
     socket.emit('sync', {
@@ -89,6 +119,9 @@ io.on('connection', (socket) => {
       player.recentQuestions.shift();
     }
 
+    // Track which question was sent to this player
+    player.currentQuestionIndex = qIndex;
+
     const q = gameState.questions[qIndex];
     socket.emit('receive_question', { questionIndex: qIndex, question_text: q.question_text, options: q.options });
   });
@@ -97,16 +130,28 @@ io.on('connection', (socket) => {
     const player = gameState.players[token];
     if (!player || gameState.status !== 'running') return;
 
+    // Security: reject if this isn't the question we sent them
+    if (questionIndex !== player.currentQuestionIndex) return;
+
     const q = gameState.questions[questionIndex];
     if (!q) return;
+
+    // Mark as answered (prevents duplicate scoring)
+    player.currentQuestionIndex = null;
+
+    // Track answer stats
+    player.totalAnswered++;
 
     const isCorrect = answer === q.correct_answer;
     if (isCorrect) {
       player.score += 100;
-      broadcastState();
+      player.totalCorrect++;
     }
+    broadcastState();
 
-    socket.emit('answer_result', { isCorrect, correctAnswer: q.correct_answer });
+    // Send correctOptionIndex instead of the raw answer string to prevent cheating
+    const correctOptionIndex = q.options.indexOf(q.correct_answer);
+    socket.emit('answer_result', { isCorrect, correctOptionIndex });
   });
 
   socket.on('tab_switched', ({ token }) => {
@@ -124,11 +169,9 @@ io.on('connection', (socket) => {
       if (qData) gameState.questions = qData;
       
       gameState.status = 'running';
-      Object.values(gameState.players).forEach(p => { 
-        p.score = 0; 
-        p.outTabbed = false; 
-        p.unseenQuestions = [];
-        p.recentQuestions = [];
+      // Reset all per-game tracking for every player
+      Object.values(gameState.players).forEach(p => {
+        Object.assign(p, freshPlayerTracking());
       });
       broadcastState();
     } else if (action === 'end') {
@@ -153,6 +196,13 @@ io.on('connection', (socket) => {
       }
     } else if (action === 'waiting') {
       gameState.status = 'waiting';
+      // Reset lobby: kick all players and clear their data
+      const hostPlayer = gameState.players['host-view'];
+      gameState.players = {};
+      if (hostPlayer) {
+        gameState.players['host-view'] = hostPlayer;
+      }
+      io.emit('lobby_reset');
       broadcastState();
     }
   });
