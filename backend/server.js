@@ -28,7 +28,6 @@ function freshPlayerTracking() {
     outTabbed: false,
     unseenQuestions: [],
     recentQuestions: [],
-    answeredQuestions: new Set(),   // prevents re-submission of same question
     currentQuestionIndex: null,     // the question the server actually sent
     totalAnswered: 0,
     totalCorrect: 0,
@@ -59,15 +58,27 @@ function broadcastState() {
 io.on('connection', (socket) => {
   socket.on('join', ({ token, name }) => {
     if (!token) return;
+    
+    // Prevent massive payload abuse
+    if (typeof name === 'string' && name.length > 200) return;
+
+    // Unicode normalize and clean name
+    const cleanName = (typeof name === 'string' ? name : '')
+      .normalize("NFC")
+      .trim()
+      .slice(0, 28) || 'Anonymous';
+
     if (!gameState.players[token]) {
       gameState.players[token] = { 
         token, 
-        name: name || 'Anonymous', 
+        name: cleanName, 
         socketId: socket.id,
         ...freshPlayerTracking()
       };
     } else {
       gameState.players[token].socketId = socket.id;
+      // Update name in case they rejoined with a new name
+      gameState.players[token].name = cleanName;
     }
 
     socket.emit('sync', {
@@ -122,14 +133,10 @@ io.on('connection', (socket) => {
     // Security: reject if this isn't the question we sent them
     if (questionIndex !== player.currentQuestionIndex) return;
 
-    // Security: reject re-submission of an already-answered question
-    if (player.answeredQuestions.has(questionIndex)) return;
-
     const q = gameState.questions[questionIndex];
     if (!q) return;
 
     // Mark as answered (prevents duplicate scoring)
-    player.answeredQuestions.add(questionIndex);
     player.currentQuestionIndex = null;
 
     // Track answer stats
@@ -139,8 +146,8 @@ io.on('connection', (socket) => {
     if (isCorrect) {
       player.score += 100;
       player.totalCorrect++;
-      broadcastState();
     }
+    broadcastState();
 
     // Send correctOptionIndex instead of the raw answer string to prevent cheating
     const correctOptionIndex = q.options.indexOf(q.correct_answer);

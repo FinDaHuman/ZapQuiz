@@ -100,7 +100,7 @@ export default function Home() {
             placeholder="🎮  Enter your nickname"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            maxLength={20}
+            maxLength={28}
             required
           />
           <button type="submit" id="join-button" className="btn btn-primary" style={{ fontSize: '1.25rem' }}>

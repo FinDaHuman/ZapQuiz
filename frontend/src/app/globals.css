@@ -277,6 +277,8 @@ body::after {
   justify-content: center;
   text-align: center;
   min-height: 120px;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 .choice-btn:disabled {
   cursor: default;

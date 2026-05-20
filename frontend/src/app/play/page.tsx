@@ -367,16 +367,17 @@ export default function Play() {
                     backgroundColor: p.token === token ? '#FFFBEB' : 'white',
                   } as React.CSSProperties}
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
                     <strong style={{ 
                       fontSize: '1.2rem', 
                       color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--primary)', 
                       width: '30px',
+                      flexShrink: 0,
                       fontFamily: 'var(--font-display)',
                     }}>
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
                     </strong>
-                    <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700 }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {p.name} {p.token === token && <span style={{ color: 'var(--purple)', fontSize: '0.85rem' }}>(You)</span>}
                     </span>
                   </span>
@@ -440,7 +441,7 @@ export default function Play() {
             
             {/* Question card */}
             <div className="center-card" style={{ maxWidth: '100%', margin: '0 0 1.5rem 0', padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '160px' }}>
-              <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-body)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.4 }}>
+              <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-body)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.4, overflowWrap: 'anywhere' }}>
                 {currentQuestion.question_text}
               </h2>
               
@@ -502,12 +503,12 @@ export default function Play() {
                 borderLeft: p.token === token ? '4px solid var(--purple)' : '4px solid transparent',
                 backgroundColor: p.token === token ? '#FFFBEB' : '#F9FAFB'
               }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <strong style={{ color: i < 3 ? 'var(--primary)' : 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
+                  <strong style={{ color: i < 3 ? 'var(--primary)' : 'var(--text-muted)', fontFamily: 'var(--font-display)', flexShrink: 0 }}>
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}
                   </strong>
-                  <span>{p.name}</span>
-                  {p.token === token && <span style={{ fontSize: '0.7rem', color: 'var(--purple)' }}>(You)</span>}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                  {p.token === token && <span style={{ fontSize: '0.7rem', color: 'var(--purple)', flexShrink: 0 }}>(You)</span>}
                 </span>
                 <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--primary)' }}>{p.score}</span>
               </div>
