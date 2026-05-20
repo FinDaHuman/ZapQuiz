@@ -142,7 +142,7 @@ export default function Play() {
     );
   }
 
-  if ((localState === 'playing' || localState === 'revealed') && currentQuestion) {
+  if ((localState === 'playing' || localState === 'revealed' || localState === 'loading') && currentQuestion) {
     return (
       <div className="container" style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingTop: '1rem' }}>
         
@@ -161,30 +161,44 @@ export default function Play() {
             <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>{myScore}</div>
           </div>
         </div>
+
+        {/* Progress bar fixed below the top bar to prevent layout shifts */}
+        <div className="progress-wrapper">
+          <div className={`progress-fill ${localState === 'revealed' ? 'shrinking' : ''}`}></div>
+        </div>
         
         <div className="player-layout">
           {/* Main Question Area */}
-          <div style={{ flex: 1 }}>
-            <div className="center-card" style={{ maxWidth: '100%', margin: '0 0 2rem 0', padding: '2rem' }}>
-              <h2 style={{ fontSize: '2rem' }}>{currentQuestion.question_text}</h2>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            
+            <div className="center-card" style={{ maxWidth: '100%', margin: '0 0 2rem 0', padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '180px' }}>
+              <h2 style={{ fontSize: '2.2rem' }}>{currentQuestion.question_text}</h2>
               
-              {/* Progress bar showing 2s pause when revealed */}
-              {localState === 'revealed' && (
-                <div className="progress-bar-container">
-                  <div className="progress-bar-fill"></div>
-                </div>
-              )}
+              {/* In-Card Text Feedback */}
+              <div style={{ minHeight: '60px', marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {localState === 'revealed' && feedback && (
+                  <span className={`feedback-text ${feedback.isCorrect ? 'feedback-correct' : 'feedback-wrong'}`}>
+                    {feedback.isCorrect ? '✅ You got it right!' : '❌ Incorrect!'}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid-2x2" style={{ marginTop: 0 }}>
               {currentQuestion.options.map((opt, i) => {
                 let btnClass = `choice-btn color-${i % 4}`;
+                let label = null;
                 
                 if (localState === 'revealed' && feedback) {
-                  if (opt === feedback.correctAnswer) {
+                  const isCorrectOption = opt === feedback.correctAnswer;
+                  const isUserChoice = opt === selectedAnswer;
+
+                  if (isCorrectOption) {
                     btnClass += ' correct-answer';
-                  } else if (opt === selectedAnswer) {
+                    label = <span className="choice-label" style={{ color: 'var(--success)' }}>✓ Correct Answer</span>;
+                  } else if (isUserChoice) {
                     btnClass += ' wrong-answer';
+                    label = <span className="choice-label" style={{ color: 'var(--error)' }}>✗ Your Choice</span>;
                   } else {
                     btnClass += ' dimmed-answer';
                   }
@@ -199,6 +213,7 @@ export default function Play() {
                     style={{ transition: 'all 0.3s ease' }}
                   >
                     {opt}
+                    {label}
                   </button>
                 );
               })}
@@ -224,7 +239,7 @@ export default function Play() {
     );
   }
 
-  // Loading State
+  // Fallback Loading
   return (
     <div className="center-card">
       <h2 style={{ color: 'var(--primary)' }}>Loading...</h2>
