@@ -191,6 +191,51 @@ body {
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* NEW: Inline Feedback Styles */
+.correct-answer {
+  background-color: var(--success) !important;
+  color: white !important;
+  box-shadow: 0 0 20px rgba(46, 213, 115, 0.5) !important;
+  transform: scale(1.02);
+  z-index: 10;
+}
+
+.wrong-answer {
+  background-color: var(--error) !important;
+  color: white !important;
+  opacity: 0.9;
+}
+
+.dimmed-answer {
+  opacity: 0.4;
+  transform: scale(0.98);
+  pointer-events: none;
+}
+
+/* NEW: Progress Bar */
+.progress-bar-container {
+  width: 100%;
+  height: 12px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  margin-top: 1rem;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: var(--primary);
+  width: 100%;
+  transform-origin: left;
+  animation: shrinkProgress 2.5s linear forwards;
+}
+
+@keyframes shrinkProgress {
+  0% { transform: scaleX(1); }
+  100% { transform: scaleX(0); }
+}
+
 /* NEW: Layout and Top Bar */
 .top-bar {
   display: flex;

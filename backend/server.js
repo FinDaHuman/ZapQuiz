@@ -21,10 +21,16 @@ const gameState = {
   players: {}
 };
 
+function getLeaderboard() {
+  return Object.values(gameState.players)
+    .filter(p => p.token !== 'host-view')
+    .sort((a, b) => b.score - a.score);
+}
+
 function broadcastState() {
   io.emit('state_update', {
     status: gameState.status,
-    leaderboard: Object.values(gameState.players).sort((a, b) => b.score - a.score)
+    leaderboard: getLeaderboard()
   });
 }
 
@@ -39,17 +45,15 @@ io.on('connection', (socket) => {
 
     socket.emit('sync', {
       status: gameState.status,
-      leaderboard: Object.values(gameState.players).sort((a, b) => b.score - a.score)
+      leaderboard: getLeaderboard()
     });
     broadcastState();
   });
 
-  // Blooket-style async loop: players request a random question at their own pace
   socket.on('get_question', ({ token }) => {
     if (gameState.status !== 'running' || gameState.questions.length === 0) return;
     const qIndex = Math.floor(Math.random() * gameState.questions.length);
     const q = gameState.questions[qIndex];
-    // Never send the correct answer to the client!
     socket.emit('receive_question', { questionIndex: qIndex, question_text: q.question_text, options: q.options });
   });
 
@@ -63,10 +67,9 @@ io.on('connection', (socket) => {
     const isCorrect = answer === q.correct_answer;
     if (isCorrect) {
       player.score += 100;
-      broadcastState(); // Broadcast updated leaderboard instantly
+      broadcastState();
     }
 
-    // Give immediate feedback to the player
     socket.emit('answer_result', { isCorrect, correctAnswer: q.correct_answer });
   });
 
