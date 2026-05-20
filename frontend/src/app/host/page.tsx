@@ -8,6 +8,8 @@ type Player = {
   name: string;
   score: number;
   outTabbed: boolean;
+  totalAnswered: number;
+  totalCorrect: number;
 };
 
 type QuizState = {
@@ -54,10 +56,13 @@ export default function HostDashboard() {
   }, []);
 
   const downloadCSV = () => {
-    const header = "Rank,Name,Score,Tab Switched\n";
+    const header = "Rank,Name,Score,Questions Answered,Correct,Accuracy %,Tab Switched\n";
     const csvRow = players
       .filter(p => p.token !== 'host-view')
-      .map((p, index) => `${index + 1},"${p.name}",${p.score},${p.outTabbed}`)
+      .map((p, index) => {
+        const accuracy = p.totalAnswered > 0 ? Math.round((p.totalCorrect / p.totalAnswered) * 100) : 0;
+        return `${index + 1},"${p.name}",${p.score},${p.totalAnswered},${p.totalCorrect},${accuracy}%,${p.outTabbed}`;
+      })
       .join("\n");
     const csvContent = header + csvRow;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -252,6 +257,18 @@ export default function HostDashboard() {
                       <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '1.05rem' }}>
                         {p.name}
                       </span>
+                      {p.totalAnswered > 0 && (
+                        <span style={{ 
+                          fontSize: '0.75rem', 
+                          color: 'var(--text-muted)', 
+                          fontFamily: 'var(--font-body)',
+                          background: '#F3F4F6',
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                        }}>
+                          {Math.round((p.totalCorrect / p.totalAnswered) * 100)}% acc
+                        </span>
+                      )}
                       {p.outTabbed && <span className="out-tabbed">⚠️ Tab Switch</span>}
                     </span>
                     <span style={{ 

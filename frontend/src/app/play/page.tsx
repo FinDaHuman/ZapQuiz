@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { socket } from '@/lib/socket';
 
@@ -15,6 +15,8 @@ type Player = {
   name: string;
   score: number;
   outTabbed: boolean;
+  totalAnswered: number;
+  totalCorrect: number;
 };
 
 /* ---------- Inline SVG Components ---------- */
@@ -79,15 +81,51 @@ export default function Play() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<'waiting' | 'running' | 'ended'>('waiting');
+  const [isMounted, setIsMounted] = useState(false);
+  const [questionCounter, setQuestionCounter] = useState(0);
   
   const [localState, setLocalState] = useState<'loading' | 'playing' | 'revealed'>('loading');
   const [currentQuestion, setCurrentQuestion] = useState<QuestionPayload | null>(null);
-  const [feedback, setFeedback] = useState<{ isCorrect: boolean; correctAnswer: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ isCorrect: boolean; correctOptionIndex: number } | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isOutTabbed, setIsOutTabbed] = useState(false);
   
   const [leaderboard, setLeaderboard] = useState<Player[]>([]);
 
+  // Refs to avoid stale closures in socket handlers
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
+
+  // Ref to track the auto-advance timer so we can cancel it
+  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear all gameplay-specific state (preserves leaderboard + identity)
+  const resetGameplayState = useCallback(() => {
+    setCurrentQuestion(null);
+    setFeedback(null);
+    setSelectedAnswer(null);
+    setLocalState('loading');
+    setQuestionCounter(0);
+
+    // Cancel any pending auto-advance timer
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+      autoAdvanceTimer.current = null;
+    }
+  }, []);
+
+  const handleLeave = () => {
+    resetGameplayState();
+    localStorage.removeItem('playerToken');
+    localStorage.removeItem('playerName');
+    router.push('/');
+  };
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Main socket effect — registered ONCE (no status in deps)
   useEffect(() => {
     const savedToken = localStorage.getItem('playerToken');
     const savedName = localStorage.getItem('playerName');
@@ -105,16 +143,29 @@ export default function Play() {
     const handleSync = (data: any) => {
       setStatus(data.status);
       setLeaderboard(data.leaderboard || []);
+
       if (data.status === 'running') {
+        // Reconnect into a running game — clear stale state & fetch a question
+        resetGameplayState();
         socket.emit('get_question', { token: savedToken });
+      } else {
+        // Joined into waiting or ended — clear any leftover gameplay state
+        resetGameplayState();
       }
     };
 
     const handleStateUpdate = (data: any) => {
+      const prevStatus = statusRef.current;
       setStatus(data.status);
       setLeaderboard(data.leaderboard || []);
-      if (data.status === 'running' && status !== 'running') {
+
+      if (data.status === 'running' && prevStatus !== 'running') {
+        // Game just started — clear stale state, fetch first question
+        resetGameplayState();
         socket.emit('get_question', { token: savedToken });
+      } else if (data.status !== 'running' && prevStatus === 'running') {
+        // Game just ended or reset — clear gameplay state, keep leaderboard
+        resetGameplayState();
       }
     };
 
@@ -123,13 +174,17 @@ export default function Play() {
       setSelectedAnswer(null);
       setFeedback(null);
       setLocalState('playing');
+      setQuestionCounter(prev => prev + 1);
     };
 
     const handleAnswerResult = (data: any) => {
       setFeedback(data);
       setLocalState('revealed');
       
-      setTimeout(() => {
+      // Store timeout ref so we can cancel on game end/reset
+      autoAdvanceTimer.current = setTimeout(() => {
+        // Guard: only advance if game is still running
+        if (statusRef.current !== 'running') return;
         socket.emit('get_question', { token: savedToken });
       }, 2500);
     };
@@ -145,13 +200,13 @@ export default function Play() {
       socket.off('receive_question', handleReceiveQuestion);
       socket.off('answer_result', handleAnswerResult);
     };
-  }, [router, status]);
+  }, [router, resetGameplayState]);  // No `status` dep — uses statusRef instead
 
   useEffect(() => {
     if (!token) return;
 
     const handleVisibilityChange = () => {
-      if (document.hidden && !isOutTabbed && status === 'running') {
+      if (document.hidden && !isOutTabbed && statusRef.current === 'running') {
         setIsOutTabbed(true);
         socket.emit('tab_switched', { token });
       }
@@ -164,7 +219,7 @@ export default function Play() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleVisibilityChange);
     };
-  }, [token, isOutTabbed, status]);
+  }, [token, isOutTabbed]);
 
   const submitAnswer = (answer: string) => {
     if (localState !== 'playing' || !token || !currentQuestion) return;
@@ -192,7 +247,7 @@ export default function Play() {
           </div>
 
           <h1 className="title" style={{ fontSize: '2rem' }}>
-            You&apos;re in, <span className="gradient-text">{playerName}</span>! 🎉
+            You&apos;re in, <span className="gradient-text">{isMounted ? playerName : 'You'}</span>! 🎉
           </h1>
 
           {/* Player count pill */}
@@ -254,7 +309,7 @@ export default function Play() {
     return (
       <>
         {/* Confetti burst */}
-        {confettiDots.map((dot) => (
+        {isMounted && confettiDots.map((dot) => (
           <div
             key={dot.id}
             className="confetti-dot"
@@ -322,6 +377,14 @@ export default function Play() {
                 </li>
               ))}
             </ul>
+
+            <button 
+              className="btn btn-secondary" 
+              style={{ marginTop: '2.5rem', maxWidth: '300px' }}
+              onClick={handleLeave}
+            >
+              Exit to Home
+            </button>
           </div>
         </div>
       </>
@@ -340,13 +403,13 @@ export default function Play() {
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Player</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 800, fontFamily: 'var(--font-display)', color: 'var(--text)' }}>
-                {playerName}
+                {isMounted ? playerName : 'You'}
               </div>
             </div>
           </div>
           <div>
             <span className="pill-badge" style={{ background: 'var(--teal)', color: 'white' }}>
-              Question {currentQuestion.questionIndex + 1}
+              Question {questionCounter}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -389,7 +452,8 @@ export default function Play() {
                 let label = null;
                 
                 if (localState === 'revealed' && feedback) {
-                  const isCorrectOption = opt === feedback.correctAnswer;
+                  // Use correctOptionIndex (number) instead of leaked correctAnswer string
+                  const isCorrectOption = i === feedback.correctOptionIndex;
                   const isUserChoice = opt === selectedAnswer;
 
                   if (isCorrectOption) {

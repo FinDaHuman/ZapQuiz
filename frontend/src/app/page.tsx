@@ -38,6 +38,11 @@ const confettiDots = Array.from({ length: 12 }, (_, i) => ({
 export default function Home() {
   const [name, setName] = useState('');
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Reconnection logic: if token exists, auto-join
   useEffect(() => {
@@ -62,7 +67,7 @@ export default function Home() {
   return (
     <>
       {/* Floating confetti */}
-      {confettiDots.map((dot) => (
+      {isMounted && confettiDots.map((dot) => (
         <div
           key={dot.id}
           className="confetti-dot"
