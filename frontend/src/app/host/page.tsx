@@ -71,6 +71,15 @@ export default function HostDashboard() {
         >
           Reset Lobby
         </button>
+        {quizState?.status === 'ended' && (
+          <button 
+            className="btn btn-success" 
+            style={{ maxWidth: '200px' }} 
+            onClick={downloadCSV}
+          >
+            Download CSV
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: '2rem' }}>
@@ -93,6 +102,18 @@ export default function HostDashboard() {
                 <span style={{ display: 'flex', alignItems: 'center' }}>
                   <strong style={{ fontSize: '1.4rem', color: 'var(--primary)', marginRight: '1rem', width: '30px' }}>#{index + 1}</strong> 
                   {p.name} 
+                  {p.outTabbed && <span className="out-tabbed">⚠️ Tab Switched</span>}
+                </span>
+                <span style={{ fontSize: '1.4rem', color: 'var(--success)' }}>{p.score} <small style={{ color: '#888', fontSize: '1rem' }}>pts</small></span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+              {p.name} 
                   {p.outTabbed && <span className="out-tabbed">⚠️ Tab Switched</span>}
                 </span>
                 <span style={{ fontSize: '1.4rem', color: 'var(--success)' }}>{p.score} <small style={{ color: '#888', fontSize: '1rem' }}>pts</small></span>

@@ -90,6 +90,23 @@ io.on('connection', (socket) => {
     } else if (action === 'end') {
       gameState.status = 'ended';
       broadcastState();
+
+      console.log('Quiz ended. Saving final scores to Supabase...');
+      const playersToSave = Object.values(gameState.players)
+        .filter(p => p.token !== 'host-view')
+        .map(p => ({
+          id: p.token,
+          display_name: p.name,
+          score: p.score,
+          out_tabbed: p.outTabbed
+        }));
+
+      if (playersToSave.length > 0) {
+        supabase.from('players').upsert(playersToSave).then(({ error }) => {
+          if (error) console.error('Error saving players:', error);
+          else console.log('Successfully saved final scores to Supabase.');
+        });
+      }
     } else if (action === 'waiting') {
       gameState.status = 'waiting';
       broadcastState();
