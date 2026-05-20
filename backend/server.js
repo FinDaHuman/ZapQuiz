@@ -189,10 +189,13 @@ io.on('connection', (socket) => {
       }
     } else if (action === 'waiting') {
       gameState.status = 'waiting';
-      // Reset per-game tracking on lobby reset too (keeps players in lobby)
-      Object.values(gameState.players).forEach(p => {
-        Object.assign(p, freshPlayerTracking());
-      });
+      // Reset lobby: kick all players and clear their data
+      const hostPlayer = gameState.players['host-view'];
+      gameState.players = {};
+      if (hostPlayer) {
+        gameState.players['host-view'] = hostPlayer;
+      }
+      io.emit('lobby_reset');
       broadcastState();
     }
   });

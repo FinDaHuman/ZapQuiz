@@ -189,16 +189,25 @@ export default function Play() {
       }, 2500);
     };
 
+    const handleLobbyReset = () => {
+      resetGameplayState();
+      localStorage.removeItem('playerToken');
+      localStorage.removeItem('playerName');
+      router.push('/');
+    };
+
     socket.on('sync', handleSync);
     socket.on('state_update', handleStateUpdate);
     socket.on('receive_question', handleReceiveQuestion);
     socket.on('answer_result', handleAnswerResult);
+    socket.on('lobby_reset', handleLobbyReset);
 
     return () => {
       socket.off('sync', handleSync);
       socket.off('state_update', handleStateUpdate);
       socket.off('receive_question', handleReceiveQuestion);
       socket.off('answer_result', handleAnswerResult);
+      socket.off('lobby_reset', handleLobbyReset);
     };
   }, [router, resetGameplayState]);  // No `status` dep — uses statusRef instead
 
