@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "ecc.install.v1",
+  "installedAt": "2026-05-14T15:11:55.031Z",
+  "target": {
+    "id": "gemini-project",
+    "target": "gemini",
+    "kind": "project",
+    "root": "D:\\Vs Code\\DongAnhCapital\\.gemini",
+    "installStatePath": "D:\\Vs Code\\DongAnhCapital\\.gemini\\ecc-install-state.json"
+  },
+  "request": {
+    "profile": "full",
+    "modules": [],
+    "includeComponents": [],
+    "excludeComponents": [],
+    "legacyLanguages": [],
+    "legacyMode": false
+  },
+  "resolution": {
+    "selectedModules": [
+      "platform-configs"
+    ],
+    "skippedModules": [
+      "rules-core",
+      "agents-core",
+      "commands-core",
+      "hooks-runtime",
+      "framework-language",
+      "database",
+      "workflow-quality",
+      "security",
+      "research-apis",
+      "business-content",
+      "operator-workflows",
+      "social-distribution",
+      "media-generation",
+      "orchestration",
+      "swift-apple",
+      "agentic-patterns",
+      "devops-infra",
+      "machine-learning",
+      "supply-chain-domain",
+      "document-processing"
+    ]
+  },
+  "source": {
+    "repoVersion": "2.0.0-rc.1",
+    "repoCommit": "4423f10cfb9e3fa088d04ab10c838c7f7fa74a45",
+    "manifestVersion": 1
+  },
+  "operations": [
+    {
+      "kind": "copy-file",
+      "moduleId": "platform-configs",
+      "sourcePath": "D:\\Vs Code\\everything-claude-code\\.gemini\\GEMINI.md",
+      "sourceRelativePath": ".gemini\\GEMINI.md",
+      "destinationPath": "D:\\Vs Code\\DongAnhCapital\\.gemini\\GEMINI.md",
+      "strategy": "sync-root-children",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "platform-configs",
+      "sourcePath": "D:\\Vs Code\\everything-claude-code\\mcp-configs\\mcp-servers.json",
+      "sourceRelativePath": "mcp-configs\\mcp-servers.json",
+      "destinationPath": "D:\\Vs Code\\DongAnhCapital\\.gemini\\mcp-configs\\mcp-servers.json",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "platform-configs",
+      "sourcePath": "D:\\Vs Code\\everything-claude-code\\scripts\\auto-update.js",
+      "sourceRelativePath": "scripts/auto-update.js",
+      "destinationPath": "D:\\Vs Code\\DongAnhCapital\\.gemini\\scripts\\auto-update.js",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    },
+    {
+      "kind": "copy-file",
+      "moduleId": "platform-configs",
+      "sourcePath": "D:\\Vs Code\\everything-claude-code\\scripts\\setup-package-manager.js",
+      "sourceRelativePath": "scripts/setup-package-manager.js",
+      "destinationPath": "D:\\Vs Code\\DongAnhCapital\\.gemini\\scripts\\setup-package-manager.js",
+      "strategy": "preserve-relative-path",
+      "ownership": "managed",
+      "scaffoldOnly": false
+    }
+  ]
+}

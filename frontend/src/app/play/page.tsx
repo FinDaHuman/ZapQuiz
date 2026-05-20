@@ -10,6 +10,13 @@ type QuestionPayload = {
   options: string[];
 };
 
+type Player = {
+  token: string;
+  name: string;
+  score: number;
+  outTabbed: boolean;
+};
+
 export default function Play() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -20,7 +27,9 @@ export default function Play() {
   const [currentQuestion, setCurrentQuestion] = useState<QuestionPayload | null>(null);
   const [feedback, setFeedback] = useState<{ isCorrect: boolean; correctAnswer: string } | null>(null);
   const [isOutTabbed, setIsOutTabbed] = useState(false);
-  const [score, setScore] = useState(0);
+  
+  // Live Leaderboard state
+  const [leaderboard, setLeaderboard] = useState<Player[]>([]);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('playerToken');
@@ -38,6 +47,7 @@ export default function Play() {
 
     const handleSync = (data: any) => {
       setStatus(data.status);
+      setLeaderboard(data.leaderboard || []);
       if (data.status === 'running') {
         socket.emit('get_question', { token: savedToken });
       }
@@ -45,6 +55,7 @@ export default function Play() {
 
     const handleStateUpdate = (data: any) => {
       setStatus(data.status);
+      setLeaderboard(data.leaderboard || []);
       if (data.status === 'running' && status !== 'running') {
         // Game just started
         socket.emit('get_question', { token: savedToken });
@@ -59,9 +70,10 @@ export default function Play() {
     const handleAnswerResult = (data: any) => {
       setFeedback(data);
       setLocalState('feedback');
-      if (data.isCorrect) setScore(s => s + 100);
       
-      // Show feedback for 2.5 seconds, then fetch next question automatically
+      // We don't need to manually update score anymore because handleStateUpdate 
+      // receives the live leaderboard with our updated score automatically!
+
       setTimeout(() => {
         socket.emit('get_question', { token: savedToken });
       }, 2500);
@@ -106,6 +118,12 @@ export default function Play() {
     socket.emit('submit_answer', { token, questionIndex: currentQuestion.questionIndex, answer });
   };
 
+  // Derive player's stats from the live leaderboard
+  const cleanLeaderboard = leaderboard.filter(p => p.token !== 'host-view');
+  const myRank = cleanLeaderboard.findIndex(p => p.token === token) + 1;
+  const myPlayer = cleanLeaderboard.find(p => p.token === token);
+  const myScore = myPlayer ? myPlayer.score : 0;
+
   if (status === 'waiting') {
     return (
       <div className="center-card">
@@ -118,10 +136,13 @@ export default function Play() {
 
   if (status === 'ended') {
     return (
-      <div className="center-card">
-        <h1 className="title">Time's Up!</h1>
-        <h2 style={{ color: 'var(--primary)', marginBottom: '1rem', fontSize: '2.5rem' }}>Score: {score}</h2>
-        <p>Look at the host screen for the final leaderboard!</p>
+      <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div className="center-card" style={{ width: '100%' }}>
+          <h1 className="title">Time's Up!</h1>
+          <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '2rem' }}>Final Score: {myScore}</h2>
+          <h2 style={{ color: 'var(--success)', marginBottom: '1.5rem', fontSize: '2.5rem' }}>Final Rank: #{myRank || '-'}</h2>
+          <p>Look at the host screen for the final results!</p>
+        </div>
       </div>
     );
   }
@@ -145,26 +166,59 @@ export default function Play() {
   // Playing State
   if (localState === 'playing' && currentQuestion) {
     return (
-      <div className="container" style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>Score: {score}</h2>
+      <div className="container" style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingTop: '1rem' }}>
+        
+        {/* Top Bar for Player Stats */}
+        <div className="top-bar">
+          <div>
+            <span style={{ color: '#666', fontSize: '1rem' }}>Player</span>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>{myPlayer?.name || 'You'}</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <span style={{ color: '#666', fontSize: '1rem' }}>Rank</span>
+            <div style={{ fontSize: '1.8rem', fontWeight: '900', color: 'var(--success)' }}>#{myRank || '-'}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ color: '#666', fontSize: '1rem' }}>Score</span>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>{myScore}</div>
+          </div>
         </div>
         
-        <div className="center-card" style={{ maxWidth: '800px', margin: '0 auto', width: '100%', marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '2rem' }}>{currentQuestion.question_text}</h2>
+        <div className="player-layout">
+          {/* Main Question Area */}
+          <div style={{ flex: 1 }}>
+            <div className="center-card" style={{ maxWidth: '100%', margin: '0 0 2rem 0' }}>
+              <h2 style={{ fontSize: '2rem' }}>{currentQuestion.question_text}</h2>
+            </div>
+
+            <div className="grid-2x2" style={{ marginTop: 0 }}>
+              {currentQuestion.options.map((opt, i) => (
+                <button 
+                  key={i} 
+                  className={`choice-btn color-${i % 4}`}
+                  onClick={() => submitAnswer(opt)}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Mini Live Leaderboard Area */}
+          <div className="mini-leaderboard">
+            <h3>Top Players</h3>
+            {cleanLeaderboard.slice(0, 5).map((p, i) => (
+              <div key={p.token} className="mini-leaderboard-item" style={{ 
+                borderLeft: p.token === token ? '6px solid var(--primary)' : 'none',
+                backgroundColor: p.token === token ? '#eef6ff' : 'white'
+              }}>
+                <span>#{i + 1} {p.name} {p.token === token && '(You)'}</span>
+                <span style={{ color: 'var(--success)' }}>{p.score}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="grid-2x2">
-          {currentQuestion.options.map((opt, i) => (
-            <button 
-              key={i} 
-              className={`choice-btn color-${i % 4}`}
-              onClick={() => submitAnswer(opt)}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
       </div>
     );
   }
