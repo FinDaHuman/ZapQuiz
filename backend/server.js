@@ -18,8 +18,36 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const gameState = {
   status: 'waiting',
   questions: [],
-  players: {}
+  players: {},
+  endTime: null,
+  targetScore: 1000
 };
+
+let gameTimerInterval = null;
+
+function endGame() {
+  if (gameState.status !== 'running') return;
+  gameState.status = 'ended';
+  if (gameTimerInterval) clearInterval(gameTimerInterval);
+  broadcastState(true);
+
+  console.log('Quiz ended. Saving final scores to Supabase...');
+  const playersToSave = Object.values(gameState.players)
+    .filter(p => p.token !== 'host-view')
+    .map(p => ({
+      id: p.token,
+      display_name: p.name,
+      score: p.score,
+      out_tabbed: p.outTabbed
+    }));
+
+  if (playersToSave.length > 0) {
+    supabase.from('players').upsert(playersToSave).then(({ error }) => {
+      if (error) console.error('Error saving players:', error);
+      else console.log('Successfully saved final scores to Supabase.');
+    });
+  }
+}
 
 // Helper: create a fresh set of per-game player tracking fields
 function freshPlayerTracking() {
@@ -31,6 +59,8 @@ function freshPlayerTracking() {
     currentQuestionIndex: null,     // the question the server actually sent
     totalAnswered: 0,
     totalCorrect: 0,
+    multiplier: 1,
+    streak: 0,
   };
 }
 
@@ -45,14 +75,30 @@ function getLeaderboard() {
       outTabbed: p.outTabbed,
       totalAnswered: p.totalAnswered,
       totalCorrect: p.totalCorrect,
+      multiplier: p.multiplier || 1,
     }));
 }
 
-function broadcastState() {
-  io.emit('state_update', {
-    status: gameState.status,
-    leaderboard: getLeaderboard()
-  });
+let broadcastTimeout = null;
+
+function broadcastState(immediate = false) {
+  const doBroadcast = () => {
+    io.emit('state_update', {
+      status: gameState.status,
+      endTime: gameState.endTime,
+      leaderboard: getLeaderboard()
+    });
+    broadcastTimeout = null;
+  };
+
+  if (immediate) {
+    if (broadcastTimeout) clearTimeout(broadcastTimeout);
+    doBroadcast();
+  } else {
+    if (!broadcastTimeout) {
+      broadcastTimeout = setTimeout(doBroadcast, 250);
+    }
+  }
 }
 
 io.on('connection', (socket) => {
@@ -90,6 +136,8 @@ io.on('connection', (socket) => {
 
     socket.emit('sync', {
       status: gameState.status,
+      endTime: gameState.endTime,
+      targetScore: gameState.targetScore,
       leaderboard: getLeaderboard()
     });
     broadcastState();
@@ -151,8 +199,40 @@ io.on('connection', (socket) => {
 
     const isCorrect = answer === q.correct_answer;
     if (isCorrect) {
-      player.score += 100;
       player.totalCorrect++;
+      player.streak++;
+
+      // Award points FIRST using current multiplier (ensures 1st correct answer has no bonus)
+      const baseScore = 50;
+      player.score += Math.round(baseScore * player.multiplier);
+
+      // Calculate dynamic rank for catch-up mechanics (handles ties correctly)
+      const activePlayers = Object.values(gameState.players).filter(p => p.token !== 'host-view');
+      const myScoreAmt = player.score;
+      const playersAhead = activePlayers.filter(p => p.score > myScoreAmt).length;
+      
+      const isBottomHalf = activePlayers.length > 1 && playersAhead >= Math.floor(activePlayers.length / 2);
+      const isFirstPlace = activePlayers.length > 1 && playersAhead === 0;
+
+      // Determine max multiplier and increment for NEXT question
+      let maxMultiplier = 2.0;
+      let increment = 0.2;
+
+      if (isFirstPlace) {
+        maxMultiplier = 1.5; // Anti-snowball for leader
+        increment = 0.1;
+      } else if (isBottomHalf) {
+        maxMultiplier = 3.0; // Catch-up for lower players
+        increment = 0.5;
+      }
+
+      // Increase multiplier for the next round
+      player.multiplier = Math.min((player.multiplier || 1.0) + increment, maxMultiplier);
+
+    } else {
+      // Reset streak and multiplier on incorrect answer
+      player.streak = 0;
+      player.multiplier = 1.0;
     }
     broadcastState();
 
@@ -165,12 +245,14 @@ io.on('connection', (socket) => {
     const player = gameState.players[token];
     if (player && !player.outTabbed) {
       player.outTabbed = true;
+      player.streak = 0;
+      player.multiplier = 1;
       broadcastState();
     }
   });
 
   socket.on('host_action', async (data) => {
-    const { action, password } = data;
+    const { action, password, duration } = data;
     
     if (password !== process.env.HOST_PASSWORD) {
       socket.emit('auth_error', { message: 'Unauthorized action' });
@@ -181,34 +263,29 @@ io.on('connection', (socket) => {
       const { data: qData } = await supabase.from('questions').select('*');
       if (qData) gameState.questions = qData;
       
+      const gameDurationMinutes = duration ? parseInt(duration, 10) : 3;
+
       gameState.status = 'running';
+      gameState.targetScore = gameDurationMinutes * 2000;
+      gameState.endTime = Date.now() + gameDurationMinutes * 60 * 1000;
+      if (gameTimerInterval) clearInterval(gameTimerInterval);
+      gameTimerInterval = setInterval(() => {
+        if (gameState.status === 'running' && Date.now() >= gameState.endTime) {
+          endGame();
+        }
+      }, 1000);
+
       // Reset all per-game tracking for every player
       Object.values(gameState.players).forEach(p => {
         Object.assign(p, freshPlayerTracking());
       });
-      broadcastState();
+      broadcastState(true);
     } else if (action === 'end') {
-      gameState.status = 'ended';
-      broadcastState();
-
-      console.log('Quiz ended. Saving final scores to Supabase...');
-      const playersToSave = Object.values(gameState.players)
-        .filter(p => p.token !== 'host-view')
-        .map(p => ({
-          id: p.token,
-          display_name: p.name,
-          score: p.score,
-          out_tabbed: p.outTabbed
-        }));
-
-      if (playersToSave.length > 0) {
-        supabase.from('players').upsert(playersToSave).then(({ error }) => {
-          if (error) console.error('Error saving players:', error);
-          else console.log('Successfully saved final scores to Supabase.');
-        });
-      }
+      endGame();
     } else if (action === 'waiting') {
       gameState.status = 'waiting';
+      gameState.endTime = null;
+      if (gameTimerInterval) clearInterval(gameTimerInterval);
       // Reset lobby: kick all players and clear their data
       const hostPlayer = gameState.players['host-view'];
       gameState.players = {};
@@ -216,7 +293,7 @@ io.on('connection', (socket) => {
         gameState.players['host-view'] = hostPlayer;
       }
       io.emit('lobby_reset');
-      broadcastState();
+      broadcastState(true);
     }
   });
 });

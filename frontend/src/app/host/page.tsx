@@ -14,6 +14,8 @@ type Player = {
 
 type QuizState = {
   status: 'waiting' | 'running' | 'ended';
+  endTime?: number;
+  targetScore?: number;
 };
 
 /* ---------- Inline SVG Components ---------- */
@@ -35,15 +37,28 @@ const AVATAR_COLORS = ['#FF6B6B', '#4D96FF', '#FFD60A', '#06D6A0', '#C77DFF', '#
 export default function HostDashboard() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [quizState, setQuizState] = useState<QuizState | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [duration, setDuration] = useState(5);
+
+  useEffect(() => {
+    if (quizState?.endTime && quizState.status === 'running') {
+      const update = () => setTimeLeft(Math.max(0, Math.floor((quizState.endTime! - Date.now()) / 1000)));
+      update();
+      const interval = setInterval(update, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setTimeLeft(null);
+    }
+  }, [quizState?.endTime, quizState?.status]);
 
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
     const handleStateUpdate = (data: any) => {
-      setQuizState({ status: data.status });
+      setQuizState({ status: data.status, endTime: data.endTime, targetScore: data.targetScore });
       setPlayers(data.leaderboard || []);
     };
     
@@ -79,7 +94,8 @@ export default function HostDashboard() {
       .filter(p => p.token !== 'host-view')
       .map((p, index) => {
         const accuracy = p.totalAnswered > 0 ? Math.round((p.totalCorrect / p.totalAnswered) * 100) : 0;
-        return `${index + 1},"${p.name}",${p.score},${p.totalAnswered},${p.totalCorrect},${accuracy}%,${p.outTabbed}`;
+        const safeName = p.name.replace(/"/g, '""');
+        return `${index + 1},"${safeName}",${p.score},${p.totalAnswered},${p.totalCorrect},${accuracy}%,${p.outTabbed}`;
       })
       .join("\n");
     const csvContent = header + csvRow;
@@ -94,7 +110,7 @@ export default function HostDashboard() {
   };
 
   const handleAction = (action: string) => {
-    socket.emit('host_action', { action, password });
+    socket.emit('host_action', { action, password, duration });
   };
 
   if (!isAuthenticated) {
@@ -144,11 +160,16 @@ export default function HostDashboard() {
           </div>
 
           {/* Status Badge */}
-          <div style={{ marginBottom: '1rem' }}>
+          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div className={`status-badge status-${currentStatus}`}>
               <span className="status-dot"></span>
               {currentStatus.toUpperCase()}
             </div>
+            {timeLeft !== null && (
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.4rem', color: 'var(--primary)', background: '#F3F4F6', padding: '4px 12px', borderRadius: '12px' }}>
+                ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+              </div>
+            )}
           </div>
 
           {/* Info text */}
@@ -158,6 +179,24 @@ export default function HostDashboard() {
 
           {/* Action Buttons */}
           <div className="host-btn-stack">
+            {currentStatus !== 'running' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', background: '#F3F4F6', padding: '8px 12px', borderRadius: '12px', justifyContent: 'center' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-body)', marginRight: 'auto' }}>⏱ Duration</span>
+                <button 
+                  onClick={() => setDuration(prev => Math.max(1, prev - 1))}
+                  style={{ background: 'white', border: '1px solid #ccc', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  -
+                </button>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.1rem', width: '30px', textAlign: 'center' }}>{duration}m</span>
+                <button 
+                  onClick={() => setDuration(prev => Math.min(60, prev + 1))}
+                  style={{ background: 'white', border: '1px solid #ccc', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  +
+                </button>
+              </div>
+            )}
             <button 
               className="btn btn-primary" 
               onClick={() => handleAction('start')}
@@ -278,53 +317,93 @@ export default function HostDashboard() {
                 </span>
               </div>
               <ul className="leaderboard">
-                {activePlayers.map((p, index) => (
+                {activePlayers.slice(0, 10).map((p, index) => {
+                  const maxScore = quizState?.targetScore || Math.max(...activePlayers.map(ap => ap.score), 1);
+                  const progressPercent = Math.min(100, (p.score / maxScore) * 100);
+                  
+                  // Vivid colors for the bar itself
+                  const barColor = index === 0 ? 'linear-gradient(90deg, #FFD700, #FFDF00)' : 
+                                   index === 1 ? 'linear-gradient(90deg, #C0C0C0, #E0E0E0)' : 
+                                   index === 2 ? 'linear-gradient(90deg, #CD7F32, #DDA15E)' : 
+                                   'var(--primary)';
+
+                  return (
                   <li 
                     key={p.token} 
                     className="leaderboard-item"
-                    style={{ '--i': index } as React.CSSProperties}
+                    style={{ 
+                      '--i': index, 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'stretch',
+                      padding: '1rem',
+                      gap: '0.5rem'
+                    } as React.CSSProperties}
                   >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <strong style={{ 
-                        fontSize: '1.3rem', 
-                        color: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'var(--primary)', 
-                        width: '36px',
-                        fontFamily: 'var(--font-display)',
-                        textAlign: 'center',
-                      }}>
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
-                      </strong> 
-                      <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '1.05rem' }}>
-                        {p.name}
-                      </span>
-                      {p.totalAnswered > 0 && (
-                        <span style={{ 
-                          fontSize: '0.75rem', 
-                          color: 'var(--text-muted)', 
-                          fontFamily: 'var(--font-body)',
-                          background: '#F3F4F6',
-                          padding: '2px 8px',
-                          borderRadius: '999px',
+                    {/* Top Row: Name and Score */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <strong style={{ 
+                          fontSize: '1.3rem', 
+                          color: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'var(--primary)', 
+                          width: '36px',
+                          fontFamily: 'var(--font-display)',
+                          textAlign: 'center',
                         }}>
-                          {Math.round((p.totalCorrect / p.totalAnswered) * 100)}% acc
+                          {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                        </strong> 
+                        <span style={{ fontFamily: 'var(--font-body)', fontWeight: 800, fontSize: '1.1rem' }}>
+                          {p.name}
                         </span>
-                      )}
-                      {p.outTabbed && <span className="out-tabbed">⚠️ Tab Switch</span>}
-                    </span>
-                    <span style={{ 
-                      fontFamily: 'var(--font-display)', 
-                      fontWeight: 900, 
-                      fontSize: '1.3rem', 
-                      color: 'var(--primary)',
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: '4px',
+                        {p.totalAnswered > 0 && (
+                          <span style={{ 
+                            fontSize: '0.75rem', 
+                            color: 'var(--text-muted)', 
+                            fontFamily: 'var(--font-body)',
+                            background: '#F3F4F6',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            fontWeight: 700
+                          }}>
+                            {Math.round((p.totalCorrect / p.totalAnswered) * 100)}% acc
+                          </span>
+                        )}
+                        {p.outTabbed && <span className="out-tabbed">⚠️ Tab Switch</span>}
+                      </span>
+                      <span style={{ 
+                        fontFamily: 'var(--font-display)', 
+                        fontWeight: 900, 
+                        fontSize: '1.4rem', 
+                        color: 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: '4px',
+                      }}>
+                        {p.score}
+                        <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>pts</small>
+                      </span>
+                    </div>
+
+                    {/* Bottom Row: Dedicated Progress Track */}
+                    <div style={{ 
+                      width: '100%', 
+                      height: '12px', 
+                      background: '#F3F4F6', 
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      marginTop: '4px',
+                      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)'
                     }}>
-                      {p.score}
-                      <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>pts</small>
-                    </span>
+                      <div style={{
+                        height: '100%',
+                        width: `${progressPercent}%`,
+                        background: barColor,
+                        borderRadius: '6px',
+                        transition: 'width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      }} />
+                    </div>
                   </li>
-                ))}
+                )})}
               </ul>
             </>
           )}

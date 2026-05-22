@@ -17,6 +17,7 @@ type Player = {
   outTabbed: boolean;
   totalAnswered: number;
   totalCorrect: number;
+  multiplier?: number;
 };
 
 /* ---------- Inline SVG Components ---------- */
@@ -81,6 +82,9 @@ export default function Play() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<'waiting' | 'running' | 'ended'>('waiting');
+  const [endTime, setEndTime] = useState<number | null>(null);
+  const [targetScore, setTargetScore] = useState<number>(1000);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [questionCounter, setQuestionCounter] = useState(0);
   
@@ -95,6 +99,17 @@ export default function Play() {
   // Refs to avoid stale closures in socket handlers
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
+
+  useEffect(() => {
+    if (endTime && status === 'running') {
+      const update = () => setTimeLeft(Math.max(0, Math.floor((endTime - Date.now()) / 1000)));
+      update();
+      const interval = setInterval(update, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setTimeLeft(null);
+    }
+  }, [endTime, status]);
 
   // Ref to track the auto-advance timer so we can cancel it
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,6 +157,7 @@ export default function Play() {
 
     const handleSync = (data: any) => {
       setStatus(data.status);
+      setEndTime(data.endTime || null);
       setLeaderboard(data.leaderboard || []);
 
       if (data.status === 'running') {
@@ -157,6 +173,7 @@ export default function Play() {
     const handleStateUpdate = (data: any) => {
       const prevStatus = statusRef.current;
       setStatus(data.status);
+      setEndTime(data.endTime || null);
       setLeaderboard(data.leaderboard || []);
 
       if (data.status === 'running' && prevStatus !== 'running') {
@@ -403,9 +420,91 @@ export default function Play() {
 
   /* ==================== ACTIVE QUESTION ==================== */
   if ((localState === 'playing' || localState === 'revealed' || localState === 'loading') && currentQuestion) {
+    const getMultiplierBackground = (mult: number) => {
+      if (mult >= 3.0) return 'repeating-linear-gradient(45deg, #FF6B6B, #FF6B6B 10px, #FF8C42 10px, #FF8C42 20px)';
+      if (mult >= 2.0) return 'repeating-linear-gradient(45deg, #FFD60A, #FFD60A 10px, #FF9F1C 10px, #FF9F1C 20px)';
+      if (mult > 1.0) return 'repeating-linear-gradient(45deg, #4D96FF, #4D96FF 10px, #4ECDC4 10px, #4ECDC4 20px)';
+      return 'linear-gradient(90deg, var(--primary), var(--primary))';
+    };
+
     return (
-      <div className="container" style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingTop: '1rem' }}>
+      <div className="container" style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingTop: '0.5rem' }}>
+        <style>{`
+          @keyframes stripe-scroll {
+            0% { background-position: 0 0; }
+            100% { background-position: 28px 0; }
+          }
+        `}</style>
         
+        {/* Duck Progress Bar at the top */}
+        <div style={{ marginBottom: '0.5rem', background: 'white', borderRadius: '16px', padding: '0.75rem 1rem', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>Progress Goal</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, color: 'var(--text-muted)' }}>{myScore} / {targetScore} pts</span>
+          </div>
+          
+          <div style={{ position: 'relative', height: '24px', background: 'var(--blue-light, #E0F2FE)', borderRadius: '12px', marginTop: '1rem' }}>
+            
+            {/* Animated Fill */}
+            <div style={{ 
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                height: '100%',
+                width: `${Math.min(100, (myScore / targetScore) * 100)}%`,
+                backgroundImage: myPlayer ? getMultiplierBackground(myPlayer.multiplier || 1.0) : 'none',
+                backgroundColor: myPlayer ? 'transparent' : 'var(--primary)',
+                backgroundSize: '200% 100%',
+                animation: myPlayer && (myPlayer.multiplier || 1.0) > 1.0 ? `stripe-scroll ${1.5 / (myPlayer.multiplier || 1.0)}s linear infinite` : 'none',
+                transition: 'width 0.5s ease-out, background-image 0.5s ease, background-color 0.5s ease',
+                borderRadius: '12px',
+                zIndex: 1
+            }} />
+
+            {/* Other Players (Closest 10 Pointers) */}
+            {(() => {
+              const myIndex = leaderboard.findIndex(p => p.token === token);
+              if (myIndex === -1) return null;
+              const startIndex = Math.max(0, myIndex - 5);
+              const endIndex = Math.min(leaderboard.length, myIndex + 6);
+              const closestPlayers = leaderboard.slice(startIndex, endIndex).filter(p => p.token !== token);
+              
+              return closestPlayers.map(p => {
+                const percent = Math.min(100, (p.score / targetScore) * 100);
+                return (
+                  <div key={p.token} style={{
+                    position: 'absolute',
+                    left: `${percent}%`,
+                    top: '-8px',
+                    width: '0',
+                    height: '0',
+                    borderLeft: '5px solid transparent',
+                    borderRight: '5px solid transparent',
+                    borderTop: '8px solid #9CA3AF',
+                    transform: 'translateX(-50%)',
+                    transition: 'left 0.5s ease-out',
+                    zIndex: 5
+                  }} title="Nearby Player" />
+                );
+              });
+            })()}
+            
+            {/* My Duck Indicator */}
+            <div style={{
+              position: 'absolute',
+              left: `${Math.min(100, (myScore / targetScore) * 100)}%`,
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              transition: 'left 0.5s ease-out',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: '1.8rem', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>🦆</span>
+            </div>
+          </div>
+        </div>
+
         {/* Top Bar */}
         <div className="top-bar">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -418,9 +517,11 @@ export default function Play() {
             </div>
           </div>
           <div>
-            <span className="pill-badge" style={{ background: 'var(--teal)', color: 'white' }}>
-              Question {questionCounter}
-            </span>
+            {timeLeft !== null && (
+              <span className="pill-badge" style={{ background: '#FFFBEB', color: 'var(--primary)' }}>
+                ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <StarIcon />
@@ -430,89 +531,67 @@ export default function Play() {
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar for auto-advance */}
         <div className="progress-wrapper">
           <div className={`progress-fill ${localState === 'revealed' ? 'shrinking' : ''}`}></div>
         </div>
         
-        <div className="player-layout">
-          {/* Main Question Area */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* Main Question Area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          
+          {/* Question card */}
+          <div className="center-card" style={{ maxWidth: '100%', margin: '0 0 1.5rem 0', padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '160px' }}>
+            <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-body)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.4, overflowWrap: 'anywhere' }}>
+              {currentQuestion.question_text}
+            </h2>
             
-            {/* Question card */}
-            <div className="center-card" style={{ maxWidth: '100%', margin: '0 0 1.5rem 0', padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '160px' }}>
-              <h2 style={{ fontSize: '1.8rem', fontFamily: 'var(--font-body)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.4, overflowWrap: 'anywhere' }}>
-                {currentQuestion.question_text}
-              </h2>
-              
-              {/* In-Card Feedback */}
-              <div style={{ minHeight: '50px', marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {localState === 'revealed' && feedback && (
-                  <span className={`feedback-text ${feedback.isCorrect ? 'feedback-correct' : 'feedback-wrong'}`}>
-                    {feedback.isCorrect ? '✅ You got it right!' : '❌ Incorrect!'}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Answer Grid */}
-            <div className="grid-2x2" style={{ marginTop: 0 }}>
-              {currentQuestion.options.map((opt, i) => {
-                let btnClass = `choice-btn color-${i % 4}`;
-                let label = null;
-                
-                if (localState === 'revealed' && feedback) {
-                  // Use correctOptionIndex (number) instead of leaked correctAnswer string
-                  const isCorrectOption = i === feedback.correctOptionIndex;
-                  const isUserChoice = opt === selectedAnswer;
-
-                  if (isCorrectOption) {
-                    btnClass += ' correct-answer';
-                    label = <span className="choice-label" style={{ color: 'var(--correct-text)' }}>✓ Correct</span>;
-                  } else if (isUserChoice) {
-                    btnClass += ' wrong-answer';
-                    label = <span className="choice-label" style={{ color: 'var(--wrong-text)' }}>✗ Your Pick</span>;
-                  } else {
-                    btnClass += ' dimmed-answer';
-                  }
-                }
-
-                return (
-                  <button 
-                    key={i} 
-                    className={btnClass}
-                    onClick={() => submitAnswer(opt)}
-                    disabled={localState !== 'playing'}
-                    style={{ transition: 'all 0.3s ease' }}
-                  >
-                    <span className="answer-shape">{AnswerShapes[i % 4]}</span>
-                    <span className="answer-letter">{LETTERS[i]}</span>
-                    {opt}
-                    {label}
-                  </button>
-                );
-              })}
+            {/* In-Card Feedback */}
+            <div style={{ minHeight: '50px', marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {localState === 'revealed' && feedback && (
+                <span className={`feedback-text ${feedback.isCorrect ? 'feedback-correct' : 'feedback-wrong'}`}>
+                  {feedback.isCorrect ? '✅ You got it right!' : '❌ Incorrect!'}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Mini Leaderboard */}
-          <div className="mini-leaderboard">
-            <h3>🏆 Leaderboard</h3>
-            {leaderboard.slice(0, 5).map((p, i) => (
-              <div key={p.token} className="mini-leaderboard-item" style={{ 
-                borderLeft: p.token === token ? '4px solid var(--purple)' : '4px solid transparent',
-                backgroundColor: p.token === token ? '#FFFBEB' : '#F9FAFB'
-              }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
-                  <strong style={{ color: i < 3 ? 'var(--primary)' : 'var(--text-muted)', fontFamily: 'var(--font-display)', flexShrink: 0 }}>
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}
-                  </strong>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                  {p.token === token && <span style={{ fontSize: '0.7rem', color: 'var(--purple)', flexShrink: 0 }}>(You)</span>}
-                </span>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--primary)' }}>{p.score}</span>
-              </div>
-            ))}
+          {/* Answer Grid */}
+          <div className="grid-2x2" style={{ marginTop: 0 }}>
+            {currentQuestion.options.map((opt, i) => {
+              let btnClass = `choice-btn color-${i % 4}`;
+              let label = null;
+              
+              if (localState === 'revealed' && feedback) {
+                // Use correctOptionIndex (number) instead of leaked correctAnswer string
+                const isCorrectOption = i === feedback.correctOptionIndex;
+                const isUserChoice = opt === selectedAnswer;
+
+                if (isCorrectOption) {
+                  btnClass += ' correct-answer';
+                  label = <span className="choice-label" style={{ color: 'var(--correct-text)' }}>✓ Correct</span>;
+                } else if (isUserChoice) {
+                  btnClass += ' wrong-answer';
+                  label = <span className="choice-label" style={{ color: 'var(--wrong-text)' }}>✗ Your Pick</span>;
+                } else {
+                  btnClass += ' dimmed-answer';
+                }
+              }
+
+              return (
+                <button 
+                  key={i} 
+                  className={btnClass}
+                  onClick={() => submitAnswer(opt)}
+                  disabled={localState !== 'playing'}
+                  style={{ transition: 'all 0.3s ease' }}
+                >
+                  <span className="answer-shape">{AnswerShapes[i % 4]}</span>
+                  <span className="answer-letter">{LETTERS[i]}</span>
+                  {opt}
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
