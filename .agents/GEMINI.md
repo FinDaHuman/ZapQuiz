@@ -1,13 +1,3 @@
-# ECC for Gemini CLI
-
-This file provides Gemini CLI with the baseline ECC workflow, review standards, and security checks for repositories that install the Gemini target.
-
-## Overview
-
-Everything Claude Code (ECC) is a cross-harness coding system with 36 specialized agents, 142 skills, and 68 commands.
-
-Gemini support is currently focused on a strong project-local instruction layer via `.gemini/GEMINI.md`, plus the shared MCP catalog and package-manager setup assets shipped by the installer.
-
 ## Core Workflow
 
 1. Plan before editing large features.
