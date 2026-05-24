@@ -286,14 +286,44 @@ io.on('connection', (socket) => {
       gameState.status = 'waiting';
       gameState.endTime = null;
       if (gameTimerInterval) clearInterval(gameTimerInterval);
+
+      // Capture session tokens BEFORE clearing memory.
+      // We need this list to delete only the records that belong to this session —
+      // a targeted delete is safer than a full-table wipe.
+      // Must happen here: after line `gameState.players = {}` the tokens are gone.
+      const sessionTokens = Object.values(gameState.players)
+        .filter(p => p.token !== 'host-view')
+        .map(p => p.token);
+
       // Reset lobby: kick all players and clear their data
       const hostPlayer = gameState.players['host-view'];
       gameState.players = {};
       if (hostPlayer) {
         gameState.players['host-view'] = hostPlayer;
       }
+
+      // Notify all clients first. Leaderboard and end-screen UI are driven entirely
+      // by in-memory state (never re-read from the DB), so it is safe to delete
+      // DB records at any point after this broadcast.
       io.emit('lobby_reset');
       broadcastState(true);
+
+      // Fire-and-forget housekeeping: remove this session's records from the players
+      // table so the 500 MB Supabase free-tier limit is not reached over time.
+      // Runs after the reset is already complete — never blocks or delays the lobby.
+      if (sessionTokens.length > 0) {
+        supabase
+          .from('players')
+          .delete()
+          .in('id', sessionTokens)
+          .then(({ error }) => {
+            if (error) {
+              console.error('[Supabase] Failed to clean up player records on lobby reset:', error);
+            } else {
+              console.log(`[Supabase] Cleaned up ${sessionTokens.length} player record(s) from players table.`);
+            }
+          });
+      }
     }
   });
 });
