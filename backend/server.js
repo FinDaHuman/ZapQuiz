@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const { getGameDurationMinutes, getTargetScore, scoreAnswer } = require('./game-logic');
 
 const app = express();
 app.use(cors());
@@ -86,6 +87,7 @@ function broadcastState(immediate = false) {
     io.emit('state_update', {
       status: gameState.status,
       endTime: gameState.endTime,
+      targetScore: gameState.targetScore,
       leaderboard: getLeaderboard()
     });
     broadcastTimeout = null;
@@ -130,9 +132,8 @@ io.on('connection', (socket) => {
       };
     } else {
       gameState.players[token].socketId = socket.id;
-      // Update name in case they rejoined with a new name
-      gameState.players[token].name = cleanName;
     }
+    socket.data.token = token;
 
     socket.emit('sync', {
       status: gameState.status,
@@ -143,7 +144,8 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('get_question', ({ token }) => {
+  socket.on('get_question', () => {
+    const token = socket.data.token;
     const player = gameState.players[token];
     if (!player || gameState.status !== 'running' || gameState.questions.length === 0) return;
 
@@ -181,7 +183,8 @@ io.on('connection', (socket) => {
     socket.emit('receive_question', { questionIndex: qIndex, question_text: q.question_text, options: q.options });
   });
 
-  socket.on('submit_answer', ({ token, questionIndex, answer }) => {
+  socket.on('submit_answer', ({ questionIndex, answer }) => {
+    const token = socket.data.token;
     const player = gameState.players[token];
     if (!player || gameState.status !== 'running') return;
 
@@ -194,54 +197,28 @@ io.on('connection', (socket) => {
     // Mark as answered (prevents duplicate scoring)
     player.currentQuestionIndex = null;
 
-    // Track answer stats
-    player.totalAnswered++;
-
     const isCorrect = answer === q.correct_answer;
-    if (isCorrect) {
-      player.totalCorrect++;
-      player.streak++;
-
-      // Award points FIRST using current multiplier (ensures 1st correct answer has no bonus)
-      const baseScore = 50;
-      player.score += Math.round(baseScore * player.multiplier);
-
-      // Calculate dynamic rank for catch-up mechanics (handles ties correctly)
-      const activePlayers = Object.values(gameState.players).filter(p => p.token !== 'host-view');
-      const myScoreAmt = player.score;
-      const playersAhead = activePlayers.filter(p => p.score > myScoreAmt).length;
-      
-      const isBottomHalf = activePlayers.length > 1 && playersAhead >= Math.floor(activePlayers.length / 2);
-      const isFirstPlace = activePlayers.length > 1 && playersAhead === 0;
-
-      // Determine max multiplier and increment for NEXT question
-      let maxMultiplier = 2.0;
-      let increment = 0.2;
-
-      if (isFirstPlace) {
-        maxMultiplier = 1.5; // Anti-snowball for leader
-        increment = 0.1;
-      } else if (isBottomHalf) {
-        maxMultiplier = 3.0; // Catch-up for lower players
-        increment = 0.5;
-      }
-
-      // Increase multiplier for the next round
-      player.multiplier = Math.min((player.multiplier || 1.0) + increment, maxMultiplier);
-
-    } else {
-      // Reset streak and multiplier on incorrect answer
-      player.streak = 0;
-      player.multiplier = 1.0;
-    }
-    broadcastState();
+    const activePlayers = Object.values(gameState.players).filter(p => p.token !== 'host-view');
+    const { reachedTargetScore } = scoreAnswer({
+      player,
+      isCorrect,
+      targetScore: gameState.targetScore,
+      activePlayers,
+    });
 
     // Send correctOptionIndex instead of the raw answer string to prevent cheating
     const correctOptionIndex = q.options.indexOf(q.correct_answer);
     socket.emit('answer_result', { isCorrect, correctOptionIndex });
+
+    if (reachedTargetScore) {
+      endGame();
+    } else {
+      broadcastState();
+    }
   });
 
-  socket.on('tab_switched', ({ token }) => {
+  socket.on('tab_switched', () => {
+    const token = socket.data.token;
     const player = gameState.players[token];
     if (player && !player.outTabbed) {
       player.outTabbed = true;
@@ -263,10 +240,9 @@ io.on('connection', (socket) => {
       const { data: qData } = await supabase.from('questions').select('*');
       if (qData) gameState.questions = qData;
       
-      const gameDurationMinutes = duration ? parseInt(duration, 10) : 3;
-
       gameState.status = 'running';
-      gameState.targetScore = gameDurationMinutes * 2000;
+      gameState.targetScore = getTargetScore(duration);
+      const gameDurationMinutes = getGameDurationMinutes(duration);
       gameState.endTime = Date.now() + gameDurationMinutes * 60 * 1000;
       if (gameTimerInterval) clearInterval(gameTimerInterval);
       gameTimerInterval = setInterval(() => {

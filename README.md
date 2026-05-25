@@ -299,7 +299,7 @@ All active game states are handled using real-time socket events:
 | Event Name | Payload Structure | Triggering Source & Action |
 | :--- | :--- | :--- |
 | **`sync`** | `{ status: string, endTime: number, targetScore: number, leaderboard: Array }` | Emitted directly to a client socket upon handshake initialization. |
-| **`state_update`**| `{ status: string, endTime: number, leaderboard: Array }` | Broadcasted globally upon lobby changes, player answers, orVisibility switch sensors. Throttled to 250ms intervals during gameplay. |
+| **`state_update`**| `{ status: string, endTime: number, targetScore: number, leaderboard: Array }` | Broadcasted globally upon lobby changes, player answers, orVisibility switch sensors. Throttled to 250ms intervals during gameplay. |
 | **`receive_question`**| `{ questionIndex: number, question_text: string, options: Array }` | Emitted directly to a player following a `get_question` request. Payloads are stripped of the correct answer. |
 | **`answer_result`**| `{ isCorrect: boolean, correctOptionIndex: number }` | Emitted directly to a player upon grading verification, providing the correct index for client-side highlighting. |
 | **`auth_error`** | `{ message: string }` | Emitted to a socket when credential verification fails during join or administrative triggers. |
@@ -384,7 +384,7 @@ graph TD
     C --> D[Server sets state to running]
     D --> E[Players p1, p2, and p3 connect]
     
-    E --> F{Sync: Is Target Score == 4000?}
+    E --> F{Sync: Is Target Score == 2000?}
     F -- Yes --> G[p1 requests and answers 2 questions correctly]
     F -- No --> Fail1[Test Fails]
     
@@ -402,7 +402,7 @@ graph TD
 ```
 
 The test validates:
-1. **Dynamic Target Scores**: Asserts that setting a 2-minute duration initializes a `targetScore` of exactly 4000 (`duration * 2000`).
+1. **Dynamic Target Scores**: Asserts that setting a 2-minute duration initializes a `targetScore` of exactly 2000 (`duration * 1000`).
 2. **Rubber-Banding / Multiplier Splitting**: Verifies that leading player `p1` (streak of 2) gets a smaller multiplier increment (`1.2x`), whereas bottom player `p3` (streak of 1) gains catch-up multipliers (`1.5x`).
 3. **Cheat focus Penalty**: Triggers visibility switch telemetry for `p1` and asserts that the scoring multiplier is instantly reset to `1.0` in the resulting global update.
 

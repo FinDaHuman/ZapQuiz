@@ -39,14 +39,16 @@ export default function Home() {
   const [name, setName] = useState('');
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Reconnection logic: if token exists, auto-join
+  // Reconnect only within the same browser tab session. Persistent localStorage
+  // can leak one player's token/name to the next person on shared devices.
   useEffect(() => {
-    const token = localStorage.getItem('playerToken');
+    const token = sessionStorage.getItem('playerToken');
     if (token) {
       router.push('/play');
     }
@@ -54,12 +56,15 @@ export default function Home() {
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!isMounted || isJoining || !name.trim()) return;
+    setIsJoining(true);
 
-    // Generate token and save to localStorage
+    // Generate token and save to this tab session.
     const token = uuidv4();
-    localStorage.setItem('playerToken', token);
-    localStorage.setItem('playerName', name.trim());
+    sessionStorage.setItem('playerToken', token);
+    sessionStorage.setItem('playerName', name.trim());
+    localStorage.removeItem('playerToken');
+    localStorage.removeItem('playerName');
 
     router.push('/play');
   };
@@ -101,9 +106,16 @@ export default function Home() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={28}
+            disabled={!isMounted || isJoining}
             required
           />
-          <button type="submit" id="join-button" className="btn btn-primary" style={{ fontSize: '1.25rem' }}>
+          <button
+            type="submit"
+            id="join-button"
+            className="btn btn-primary"
+            disabled={!isMounted || isJoining}
+            style={{ fontSize: '1.25rem' }}
+          >
             LET&apos;S GO! →
           </button>
         </form>

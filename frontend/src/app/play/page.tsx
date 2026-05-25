@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { socket } from '@/lib/socket';
+import { DEFAULT_TARGET_SCORE, getProgressPercent } from '@/lib/gameLogic';
 
 type QuestionPayload = {
   questionIndex: number;
@@ -83,7 +84,7 @@ export default function Play() {
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<'waiting' | 'running' | 'ended'>('waiting');
   const [endTime, setEndTime] = useState<number | null>(null);
-  const [targetScore, setTargetScore] = useState<number>(1000);
+  const [targetScore, setTargetScore] = useState<number>(DEFAULT_TARGET_SCORE);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [questionCounter, setQuestionCounter] = useState(0);
@@ -131,6 +132,8 @@ export default function Play() {
 
   const handleLeave = () => {
     resetGameplayState();
+    sessionStorage.removeItem('playerToken');
+    sessionStorage.removeItem('playerName');
     localStorage.removeItem('playerToken');
     localStorage.removeItem('playerName');
     router.push('/');
@@ -142,8 +145,8 @@ export default function Play() {
 
   // Main socket effect — registered ONCE (no status in deps)
   useEffect(() => {
-    const savedToken = localStorage.getItem('playerToken');
-    const savedName = localStorage.getItem('playerName');
+    const savedToken = sessionStorage.getItem('playerToken');
+    const savedName = sessionStorage.getItem('playerName');
 
     if (!savedToken) {
       router.push('/');
@@ -158,12 +161,13 @@ export default function Play() {
     const handleSync = (data: any) => {
       setStatus(data.status);
       setEndTime(data.endTime || null);
+      setTargetScore(data.targetScore || DEFAULT_TARGET_SCORE);
       setLeaderboard(data.leaderboard || []);
 
       if (data.status === 'running') {
         // Reconnect into a running game — clear stale state & fetch a question
         resetGameplayState();
-        socket.emit('get_question', { token: savedToken });
+        socket.emit('get_question');
       } else {
         // Joined into waiting or ended — clear any leftover gameplay state
         resetGameplayState();
@@ -174,12 +178,13 @@ export default function Play() {
       const prevStatus = statusRef.current;
       setStatus(data.status);
       setEndTime(data.endTime || null);
+      setTargetScore(data.targetScore || DEFAULT_TARGET_SCORE);
       setLeaderboard(data.leaderboard || []);
 
       if (data.status === 'running' && prevStatus !== 'running') {
         // Game just started — clear stale state, fetch first question
         resetGameplayState();
-        socket.emit('get_question', { token: savedToken });
+        socket.emit('get_question');
       } else if (data.status !== 'running' && prevStatus === 'running') {
         // Game just ended or reset — clear gameplay state, keep leaderboard
         resetGameplayState();
@@ -202,12 +207,14 @@ export default function Play() {
       autoAdvanceTimer.current = setTimeout(() => {
         // Guard: only advance if game is still running
         if (statusRef.current !== 'running') return;
-        socket.emit('get_question', { token: savedToken });
+        socket.emit('get_question');
       }, 2500);
     };
 
     const handleLobbyReset = () => {
       resetGameplayState();
+      sessionStorage.removeItem('playerToken');
+      sessionStorage.removeItem('playerName');
       localStorage.removeItem('playerToken');
       localStorage.removeItem('playerName');
       router.push('/');
@@ -234,7 +241,7 @@ export default function Play() {
     const handleVisibilityChange = () => {
       if (document.hidden && !isOutTabbed && statusRef.current === 'running') {
         setIsOutTabbed(true);
-        socket.emit('tab_switched', { token });
+        socket.emit('tab_switched');
       }
     };
 
@@ -251,13 +258,13 @@ export default function Play() {
     if (localState !== 'playing' || !token || !currentQuestion) return;
     setLocalState('loading'); 
     setSelectedAnswer(answer);
-    socket.emit('submit_answer', { token, questionIndex: currentQuestion.questionIndex, answer });
+    socket.emit('submit_answer', { questionIndex: currentQuestion.questionIndex, answer });
   };
 
   const myRank = leaderboard.findIndex(p => p.token === token) + 1;
   const myPlayer = leaderboard.find(p => p.token === token);
   const myScore = myPlayer ? myPlayer.score : 0;
-  const playerName = myPlayer?.name || (typeof window !== 'undefined' ? localStorage.getItem('playerName') : null) || 'You';
+  const playerName = myPlayer?.name || (typeof window !== 'undefined' ? sessionStorage.getItem('playerName') : null) || 'You';
 
   /* ==================== WAITING ROOM ==================== */
   if (status === 'waiting') {
@@ -420,6 +427,9 @@ export default function Play() {
 
   /* ==================== ACTIVE QUESTION ==================== */
   if ((localState === 'playing' || localState === 'revealed' || localState === 'loading') && currentQuestion) {
+    const myProgressPercent = getProgressPercent(myScore, targetScore);
+    const duckIndicatorLeft = `clamp(18px, ${myProgressPercent}%, calc(100% - 18px))`;
+
     const getMultiplierBackground = (mult: number) => {
       if (mult >= 3.0) return 'repeating-linear-gradient(45deg, #FF6B6B, #FF6B6B 10px, #FF8C42 10px, #FF8C42 20px)';
       if (mult >= 2.0) return 'repeating-linear-gradient(45deg, #FFD60A, #FFD60A 10px, #FF9F1C 10px, #FF9F1C 20px)';
@@ -451,7 +461,7 @@ export default function Play() {
                 left: 0,
                 top: 0,
                 height: '100%',
-                width: `${Math.min(100, (myScore / targetScore) * 100)}%`,
+                width: `${myProgressPercent}%`,
                 backgroundImage: myPlayer ? getMultiplierBackground(myPlayer.multiplier || 1.0) : 'none',
                 backgroundColor: myPlayer ? 'transparent' : 'var(--primary)',
                 backgroundSize: '200% 100%',
@@ -470,11 +480,11 @@ export default function Play() {
               const closestPlayers = leaderboard.slice(startIndex, endIndex).filter(p => p.token !== token);
               
               return closestPlayers.map(p => {
-                const percent = Math.min(100, (p.score / targetScore) * 100);
+                const percent = getProgressPercent(p.score, targetScore);
                 return (
                   <div key={p.token} style={{
                     position: 'absolute',
-                    left: `${percent}%`,
+                    left: `clamp(6px, ${percent}%, calc(100% - 6px))`,
                     top: '-8px',
                     width: '0',
                     height: '0',
@@ -492,7 +502,7 @@ export default function Play() {
             {/* My Duck Indicator */}
             <div style={{
               position: 'absolute',
-              left: `${Math.min(100, (myScore / targetScore) * 100)}%`,
+              left: duckIndicatorLeft,
               top: '50%',
               transform: 'translate(-50%, -50%)',
               transition: 'left 0.5s ease-out',

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { socket } from '@/lib/socket';
+import { DEFAULT_TARGET_SCORE, getProgressPercent } from '@/lib/gameLogic';
 
 type Player = {
   token: string;
@@ -137,6 +138,9 @@ export default function HostDashboard() {
 
   const currentStatus = quizState?.status || 'waiting';
   const activePlayers = players.filter(p => p.token !== 'host-view');
+  const goalScore = quizState?.targetScore && quizState.targetScore > 0
+    ? quizState.targetScore
+    : DEFAULT_TARGET_SCORE;
   const avgScore = activePlayers.length > 0
     ? Math.round(activePlayers.reduce((sum, p) => sum + p.score, 0) / activePlayers.length)
     : 0;
@@ -174,7 +178,7 @@ export default function HostDashboard() {
 
           {/* Info text */}
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.6, fontFamily: 'var(--font-body)', marginBottom: '0.5rem' }}>
-            Players navigate questions at their own pace. They cycle through random questions until you click <strong>End Game</strong>.
+            Players navigate questions at their own pace until time runs out, the host ends the game, or someone reaches the score goal.
           </p>
 
           {/* Action Buttons */}
@@ -190,7 +194,7 @@ export default function HostDashboard() {
                 </button>
                 <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.1rem', width: '30px', textAlign: 'center' }}>{duration}m</span>
                 <button 
-                  onClick={() => setDuration(prev => Math.min(60, prev + 1))}
+                  onClick={() => setDuration(prev => Math.min(30, prev + 1))}
                   style={{ background: 'white', border: '1px solid #ccc', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold' }}
                 >
                   +
@@ -312,14 +316,18 @@ export default function HostDashboard() {
                 }}>
                   🏆 Live Leaderboard
                 </h2>
-                <span className="pill-badge">
-                  {activePlayers.length} Player{activePlayers.length !== 1 ? 's' : ''}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <span className="pill-badge">
+                    Goal: {goalScore} pts
+                  </span>
+                  <span className="pill-badge">
+                    {activePlayers.length} Player{activePlayers.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
               </div>
               <ul className="leaderboard">
                 {activePlayers.slice(0, 10).map((p, index) => {
-                  const maxScore = quizState?.targetScore || Math.max(...activePlayers.map(ap => ap.score), 1);
-                  const progressPercent = Math.min(100, (p.score / maxScore) * 100);
+                  const progressPercent = getProgressPercent(p.score, goalScore);
                   
                   // Vivid colors for the bar itself
                   const barColor = index === 0 ? 'linear-gradient(90deg, #FFD700, #FFDF00)' : 

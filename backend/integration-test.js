@@ -54,7 +54,7 @@ async function runTest() {
           console.log('Multiplier scaling logic correctly applies differently for 1st place vs 3rd place!');
           phase = 5;
           console.log('Sending tab_switched event for P1...');
-          p1.emit('tab_switched', { token: 'p1' });
+          p1.emit('tab_switched');
         }
       }
     } else if (phase === 5) {
@@ -73,43 +73,43 @@ async function runTest() {
 
   p1.on('sync', (data) => {
     if (data.status === 'running' && !targetScoreVerified) {
-      if (data.targetScore === 4000) {
-        console.log('Target score successfully verified as 4000');
+      if (data.targetScore === 2000) {
+        console.log('Target score successfully verified as 2000');
         targetScoreVerified = true;
       } else {
-        console.error('Target score is', data.targetScore, 'expected 4000');
+        console.error('Target score is', data.targetScore, 'expected 2000');
         process.exit(1);
       }
 
       setTimeout(() => {
         phase = 2;
-        p1.emit('get_question', { token: 'p1' });
+        p1.emit('get_question');
       }, 500);
     }
   });
 
   p1.on('receive_question', (q) => {
     const ans = getCorrectAnswer(q.question_text);
-    p1.emit('submit_answer', { token: 'p1', questionIndex: q.questionIndex, answer: ans });
+    p1.emit('submit_answer', { questionIndex: q.questionIndex, answer: ans });
     p1AnsCount++;
 
     if (p1AnsCount === 1) {
       // After first answer, let P1 get another question to increase lead
       setTimeout(() => {
-        p1.emit('get_question', { token: 'p1' });
+        p1.emit('get_question');
       }, 500);
     } else if (p1AnsCount === 2) {
       // P1 has 2 correct answers. Now let P3 get a question. P3 is bottom half.
       setTimeout(() => {
         phase = 4;
-        p3.emit('get_question', { token: 'p3' });
+        p3.emit('get_question');
       }, 500);
     }
   });
 
   p3.on('receive_question', (q) => {
     const ans = getCorrectAnswer(q.question_text);
-    p3.emit('submit_answer', { token: 'p3', questionIndex: q.questionIndex, answer: ans });
+    p3.emit('submit_answer', { questionIndex: q.questionIndex, answer: ans });
   });
 
   setTimeout(() => {
